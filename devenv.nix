@@ -7,6 +7,10 @@ _:
     rust.enable = true;
   };
 
+  packages = [
+    _.nixpkgs.legacyPackages.x86_64-linux.openssl
+  ];
+
   # https://devenv.sh/git-hooks/
   git-hooks.hooks = {
     rustfmt.enable = true;
