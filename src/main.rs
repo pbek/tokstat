@@ -53,6 +53,9 @@ enum Commands {
         /// Specific account name (refreshes all if not specified)
         name: Option<String>,
     },
+
+    /// Show version information
+    Version,
 }
 
 #[tokio::main]
@@ -150,6 +153,10 @@ async fn main() -> Result<()> {
                     }
                 }
             }
+        }
+
+        Commands::Version => {
+            println!("tokstat {}", env!("CARGO_PKG_VERSION"));
         }
     }
 
