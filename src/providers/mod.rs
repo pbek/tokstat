@@ -38,12 +38,12 @@ pub trait Provider: Send + Sync {
 pub async fn fetch_quota(account: &crate::storage::Account) -> Result<QuotaInfo> {
     let storage = crate::storage::SecureStorage::new()?;
     let credentials = storage.get_credentials(&account.name)?;
-    
+
     let provider: Box<dyn Provider> = match account.provider.as_str() {
         "copilot" => Box::new(copilot::CopilotProvider),
         "openrouter" => Box::new(openrouter::OpenRouterProvider),
         _ => anyhow::bail!("Unknown provider: {}", account.provider),
     };
-    
+
     provider.fetch_quota(&credentials).await
 }

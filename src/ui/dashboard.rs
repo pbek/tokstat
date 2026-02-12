@@ -65,16 +65,16 @@ impl App {
             should_quit: false,
             status_message: "Loading...".to_string(),
         };
-        
+
         app.refresh_quotas().await;
-        
+
         Ok(app)
     }
-    
+
     async fn refresh_quotas(&mut self) {
         self.status_message = "Refreshing quota information...".to_string();
         self.quotas.clear();
-        
+
         for account in &self.accounts {
             match crate::providers::fetch_quota(account).await {
                 Ok(mut quota) => {
@@ -86,16 +86,16 @@ impl App {
                 }
             }
         }
-        
+
         self.status_message = format!("Last updated: {}", chrono::Local::now().format("%H:%M:%S"));
     }
-    
+
     fn next(&mut self) {
         if !self.accounts.is_empty() {
             self.selected_index = (self.selected_index + 1) % self.accounts.len();
         }
     }
-    
+
     fn previous(&mut self) {
         if !self.accounts.is_empty() {
             self.selected_index = if self.selected_index == 0 {
@@ -107,13 +107,16 @@ impl App {
     }
 }
 
-async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
+async fn run_app(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+) -> Result<()> {
     let mut last_refresh = std::time::Instant::now();
     let refresh_duration = std::time::Duration::from_secs(60);
-    
+
     loop {
         terminal.draw(|f| ui(f, app))?;
-        
+
         // Check for user input
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
@@ -135,13 +138,13 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                 }
             }
         }
-        
+
         // Auto-refresh every 60 seconds
         if last_refresh.elapsed() >= refresh_duration {
             app.refresh_quotas().await;
             last_refresh = std::time::Instant::now();
         }
-        
+
         if app.should_quit {
             return Ok(());
         }
@@ -158,40 +161,59 @@ fn ui(f: &mut Frame, app: &App) {
             Constraint::Length(3),
         ])
         .split(f.size());
-    
+
     // Header
     let header = Paragraph::new("tokstat - Token Quota Monitor")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(header, chunks[0]);
-    
+
     // Main content
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
         .split(chunks[1]);
-    
+
     // Account list
     render_account_list(f, app, main_chunks[0]);
-    
+
     // Quota details
     render_quota_details(f, app, main_chunks[1]);
-    
+
     // Footer
     let footer_text = vec![
         Line::from(vec![
             Span::raw("Press "),
-            Span::styled("q", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "q",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" to quit, "),
-            Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "r",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" to refresh, "),
-            Span::styled("↑↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "↑↓",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" to navigate"),
         ]),
         Line::from(app.status_message.as_str()),
     ];
-    
+
     let footer = Paragraph::new(footer_text)
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
@@ -212,15 +234,14 @@ fn render_account_list(f: &mut Frame, app: &App, area: Rect) {
             } else {
                 Style::default()
             };
-            
+
             let content = format!("{} ({})", account.name, account.provider);
             ListItem::new(content).style(style)
         })
         .collect();
-    
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Accounts"));
-    
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Accounts"));
+
     f.render_widget(list, area);
 }
 
@@ -228,26 +249,27 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
     if app.quotas.is_empty() {
         let message = Paragraph::new("No quota data available")
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Quota Details"));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Quota Details"),
+            );
         f.render_widget(message, area);
         return;
     }
-    
+
     if app.selected_index >= app.quotas.len() {
         return;
     }
-    
+
     let quota = &app.quotas[app.selected_index];
     let account = &app.accounts[app.selected_index];
-    
+
     let details_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(6),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(6), Constraint::Min(0)])
         .split(area);
-    
+
     // Account info
     let info_text = vec![
         Line::from(vec![
@@ -259,17 +281,20 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(&account.name),
         ]),
         Line::from(vec![
-            Span::styled("Last Updated: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Last Updated: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::raw(quota.last_updated.format("%Y-%m-%d %H:%M:%S").to_string()),
         ]),
     ];
-    
+
     let info = Paragraph::new(info_text)
         .block(Block::default().borders(Borders::ALL).title("Account Info"))
         .wrap(Wrap { trim: true });
-    
+
     f.render_widget(info, details_chunks[0]);
-    
+
     // Usage details
     let usage_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -281,51 +306,59 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Min(0),
         ])
         .split(details_chunks[1]);
-    
+
     // Tokens used
     if let Some(tokens) = quota.usage.tokens_used {
-        let max_tokens = quota.limits.as_ref()
+        let max_tokens = quota
+            .limits
+            .as_ref()
             .and_then(|l| l.max_tokens)
             .unwrap_or(tokens * 2);
-        
+
         let ratio = tokens as f64 / max_tokens as f64;
-        let label = format!("Tokens: {} / {}", format_number(tokens), format_number(max_tokens));
-        
+        let label = format!(
+            "Tokens: {} / {}",
+            format_number(tokens),
+            format_number(max_tokens)
+        );
+
         let gauge = Gauge::default()
             .block(Block::default().borders(Borders::ALL))
             .gauge_style(Style::default().fg(get_usage_color(ratio)))
             .ratio(ratio.min(1.0))
             .label(label);
-        
+
         f.render_widget(gauge, usage_chunks[0]);
     }
-    
+
     // Requests made
     if let Some(requests) = quota.usage.requests_made {
         let info = Paragraph::new(format!("Requests: {}", format_number(requests)))
             .block(Block::default().borders(Borders::ALL));
         f.render_widget(info, usage_chunks[1]);
     }
-    
+
     // Cost
     if let Some(cost) = quota.usage.cost {
-        let max_cost = quota.limits.as_ref()
+        let max_cost = quota
+            .limits
+            .as_ref()
             .and_then(|l| l.max_cost)
             .unwrap_or(cost * 2.0);
-        
+
         let ratio = cost / max_cost;
         let label = if max_cost > 0.0 {
             format!("Cost: ${:.2} / ${:.2}", cost, max_cost)
         } else {
             format!("Cost: ${:.2}", cost)
         };
-        
+
         let gauge = Gauge::default()
             .block(Block::default().borders(Borders::ALL))
             .gauge_style(Style::default().fg(get_usage_color(ratio)))
             .ratio(ratio.min(1.0))
             .label(label);
-        
+
         f.render_widget(gauge, usage_chunks[2]);
     }
 }

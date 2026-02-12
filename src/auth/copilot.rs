@@ -41,9 +41,9 @@ struct AccessTokenResponse {
 
 pub async fn login(storage: &crate::storage::SecureStorage, account_name: &str) -> Result<()> {
     println!("\n🔐 GitHub Copilot Login Flow\n");
-    
+
     let client = reqwest::Client::new();
-    
+
     // Step 1: Request device code
     println!("Requesting device code...");
     let device_response = client
@@ -56,28 +56,28 @@ pub async fn login(storage: &crate::storage::SecureStorage, account_name: &str) 
         .send()
         .await
         .context("Failed to request device code")?;
-    
+
     let device_code_data: DeviceCodeResponse = device_response
         .json()
         .await
         .context("Failed to parse device code response")?;
-    
+
     // Step 2: Display code to user
     println!("\n{}", "━".repeat(60));
     println!("Please visit: {}", device_code_data.verification_uri);
     println!("And enter code: {}", device_code_data.user_code);
     println!("{}", "━".repeat(60));
     println!("\nWaiting for authorization...");
-    
+
     // Step 3: Poll for access token
     let interval = Duration::from_secs(device_code_data.interval);
     let max_attempts = device_code_data.expires_in / device_code_data.interval;
-    
+
     let mut access_token = None;
-    
+
     for _attempt in 0..max_attempts {
         sleep(interval).await;
-        
+
         let token_response = client
             .post(GITHUB_TOKEN_URL)
             .header("Accept", "application/json")
@@ -89,17 +89,17 @@ pub async fn login(storage: &crate::storage::SecureStorage, account_name: &str) 
             .send()
             .await
             .context("Failed to request access token")?;
-        
+
         let token_data: AccessTokenResponse = token_response
             .json()
             .await
             .context("Failed to parse token response")?;
-        
+
         if let Some(token) = token_data.access_token {
             access_token = Some(token);
             break;
         }
-        
+
         if let Some(error) = token_data.error {
             match error.as_str() {
                 "authorization_pending" => {
@@ -120,34 +120,37 @@ pub async fn login(storage: &crate::storage::SecureStorage, account_name: &str) 
                     anyhow::bail!("Access denied by user");
                 }
                 _ => {
-                    anyhow::bail!("OAuth error: {} - {}", error, 
-                                  token_data.error_description.unwrap_or_default());
+                    anyhow::bail!(
+                        "OAuth error: {} - {}",
+                        error,
+                        token_data.error_description.unwrap_or_default()
+                    );
                 }
             }
         }
     }
-    
-    let access_token = access_token
-        .context("Failed to obtain access token (timeout)")?;
-    
+
+    let access_token = access_token.context("Failed to obtain access token (timeout)")?;
+
     println!("\n✓ Authorization successful!");
-    
+
     // Now we need to exchange this for Copilot tokens
     // This part depends on GitHub's Copilot API authentication
     // For now, we'll store the GitHub token
-    
+
     let credentials = crate::providers::copilot::CopilotCredentials {
         access_token: access_token.clone(),
         refresh_token: String::new(), // GitHub doesn't provide refresh tokens with device flow
         expires_at: chrono::Utc::now() + chrono::Duration::days(90), // GitHub tokens don't expire by default
     };
-    
-    let credentials_json = serde_json::to_string(&credentials)
-        .context("Failed to serialize credentials")?;
-    
-    storage.store_credentials(account_name, &credentials_json)
+
+    let credentials_json =
+        serde_json::to_string(&credentials).context("Failed to serialize credentials")?;
+
+    storage
+        .store_credentials(account_name, &credentials_json)
         .context("Failed to store credentials")?;
-    
+
     // Store account metadata
     let account = crate::storage::Account {
         name: account_name.to_string(),
@@ -156,9 +159,10 @@ pub async fn login(storage: &crate::storage::SecureStorage, account_name: &str) 
         created_at: chrono::Utc::now(),
         last_updated: chrono::Utc::now(),
     };
-    
-    storage.save_account(account)
+
+    storage
+        .save_account(account)
         .context("Failed to save account")?;
-    
+
     Ok(())
 }

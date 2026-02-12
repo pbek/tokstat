@@ -1,6 +1,6 @@
+use super::{Provider, QuotaInfo, TokenLimits, TokenUsage};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use super::{Provider, QuotaInfo, TokenUsage, TokenLimits};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CopilotCredentials {
@@ -14,9 +14,9 @@ pub struct CopilotProvider;
 #[async_trait::async_trait]
 impl Provider for CopilotProvider {
     async fn fetch_quota(&self, credentials: &str) -> Result<QuotaInfo> {
-        let creds: CopilotCredentials = serde_json::from_str(credentials)
-            .context("Failed to parse Copilot credentials")?;
-        
+        let creds: CopilotCredentials =
+            serde_json::from_str(credentials).context("Failed to parse Copilot credentials")?;
+
         // Check if token is expired
         let now = chrono::Utc::now();
         let access_token = if now >= creds.expires_at {
@@ -26,9 +26,9 @@ impl Provider for CopilotProvider {
         } else {
             creds.access_token.clone()
         };
-        
+
         let client = reqwest::Client::new();
-        
+
         // Fetch usage data from GitHub Copilot API
         // Note: This endpoint might change, verify with GitHub's API docs
         let response = client
@@ -38,14 +38,16 @@ impl Provider for CopilotProvider {
             .send()
             .await
             .context("Failed to fetch Copilot usage")?;
-        
+
         if !response.status().is_success() {
             anyhow::bail!("Failed to fetch Copilot quota: {}", response.status());
         }
-        
-        let usage_data: CopilotUsageResponse = response.json().await
+
+        let usage_data: CopilotUsageResponse = response
+            .json()
+            .await
             .context("Failed to parse Copilot usage response")?;
-        
+
         Ok(QuotaInfo {
             provider: "copilot".to_string(),
             account_name: "".to_string(), // Will be filled by caller
@@ -63,7 +65,7 @@ impl Provider for CopilotProvider {
             last_updated: chrono::Utc::now(),
         })
     }
-    
+
     fn provider_name(&self) -> &str {
         "copilot"
     }
