@@ -79,8 +79,9 @@
 
             meta = with pkgs.lib; {
               description = "A beautiful CLI application to monitor token quotas across multiple AI providers";
-              homepage = "https://github.com/yourusername/tokstat";
-              license = licenses.mit;
+              homepage = "https://github.com/pbek/tokstat";
+              changelog = "https://github.com/pbek/tokstat/releases/tag/v${version}";
+              license = licenses.gpl3Plus;
               maintainers = with maintainers; [ pbek ];
               mainProgram = "tokstat";
             };
