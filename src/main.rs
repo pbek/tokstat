@@ -8,7 +8,6 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use std::io;
 use tracing::info;
-use tracing_subscriber;
 
 #[derive(Parser)]
 #[command(name = "tokstat")]
