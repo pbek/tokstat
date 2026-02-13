@@ -1,6 +1,7 @@
 use super::{Provider, QuotaInfo, TokenLimits, TokenUsage};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CopilotCredentials {
@@ -36,9 +37,8 @@ impl Provider for CopilotProvider {
         let client = reqwest::Client::new();
 
         // Fetch usage data from GitHub Copilot API
-        // Note: This endpoint might change, verify with GitHub's API docs
         let response = client
-            .get("https://api.github.com/copilot_internal/v2/usage")
+            .get("https://api.github.com/copilot_internal/user")
             .header("Authorization", format!("Bearer {}", access_token))
             .header("User-Agent", "ai-quota-monitor")
             .send()
@@ -63,25 +63,60 @@ impl Provider for CopilotProvider {
             }
         }
 
-        let usage_data: CopilotUsageResponse = response
+        let usage_data: Value = response
             .json()
             .await
             .context("Failed to parse Copilot usage response")?;
+
+        let premium_snapshot = usage_data
+            .get("quota_snapshots")
+            .and_then(|snapshots| snapshots.get("premium_interactions"));
+        let (premium_used, premium_limit) = if let Some(snapshot) = premium_snapshot {
+            let unlimited = snapshot
+                .get("unlimited")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+
+            if unlimited {
+                (None, None)
+            } else {
+                let entitlement = snapshot.get("entitlement").and_then(Value::as_u64);
+                let remaining = snapshot.get("remaining").and_then(Value::as_u64);
+
+                if let (Some(entitlement), Some(remaining)) = (entitlement, remaining) {
+                    let used = entitlement.saturating_sub(remaining);
+                    (Some(used), Some(entitlement))
+                } else {
+                    (None, None)
+                }
+            }
+        } else {
+            (None, None)
+        };
+
+        let reset_date = usage_data
+            .get("quota_reset_date")
+            .and_then(Value::as_str)
+            .and_then(|value| {
+                chrono::DateTime::parse_from_rfc3339(value)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            });
 
         Ok(QuotaInfo {
             provider: "copilot".to_string(),
             account_name: "".to_string(), // Will be filled by caller
             usage: TokenUsage {
-                tokens_used: Some(usage_data.total_tokens_used),
-                requests_made: Some(usage_data.total_requests),
+                tokens_used: None,
+                requests_made: premium_used,
                 cost: None, // Copilot is subscription-based
             },
             limits: Some(TokenLimits {
-                max_tokens: None, // No hard limit for Copilot
-                max_requests: None,
+                max_tokens: None,
+                max_requests: premium_limit,
                 max_cost: None,
             }),
-            reset_date: usage_data.billing_cycle_end,
+            reset_date,
             last_updated: chrono::Utc::now(),
         })
     }
@@ -89,11 +124,4 @@ impl Provider for CopilotProvider {
     fn provider_name(&self) -> &str {
         "copilot"
     }
-}
-
-#[derive(Debug, Deserialize)]
-struct CopilotUsageResponse {
-    total_tokens_used: u64,
-    total_requests: u64,
-    billing_cycle_end: Option<chrono::DateTime<chrono::Utc>>,
 }

@@ -345,8 +345,28 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
 
     // Requests made
     if let Some(requests) = quota.usage.requests_made {
-        let info = Paragraph::new(format!("Requests: {}", format_number(requests)))
-            .block(Block::default().borders(Borders::ALL));
+        let request_limits = quota.limits.as_ref().and_then(|l| l.max_requests);
+
+        let requests_label = if let Some(max_requests) = request_limits {
+            let remaining = max_requests.saturating_sub(requests);
+            let percent_used = if max_requests > 0 {
+                (requests as f64 / max_requests as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            format!(
+                "Requests: {} / {} ({} remaining, {:.1}% used)",
+                format_number(requests),
+                format_number(max_requests),
+                format_number(remaining),
+                percent_used
+            )
+        } else {
+            format!("Requests: {}", format_number(requests))
+        };
+
+        let info = Paragraph::new(requests_label).block(Block::default().borders(Borders::ALL));
         f.render_widget(info, usage_chunks[1]);
     }
 
