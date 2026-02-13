@@ -81,7 +81,7 @@
               description = "A beautiful CLI application to monitor token quotas across multiple AI providers";
               homepage = "https://github.com/yourusername/tokstat";
               license = licenses.mit;
-              maintainers = [ ];
+              maintainers = with maintainers; [ pbek ];
               mainProgram = "tokstat";
             };
           };
