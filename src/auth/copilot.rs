@@ -31,6 +31,7 @@ struct AccessTokenRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct AccessTokenResponse {
     access_token: Option<String>,
     token_type: Option<String>,
