@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -135,6 +135,37 @@ impl SecureStorage {
         let _ = entry.delete_password();
 
         Ok(())
+    }
+
+    pub fn rename_account(&self, old_name: &str, new_name: &str) -> Result<()> {
+        if old_name == new_name {
+            return Ok(());
+        }
+
+        let mut index = self.load_index()?;
+
+        if index
+            .accounts
+            .iter()
+            .any(|account| account.name == new_name)
+        {
+            bail!("An account named '{}' already exists", new_name);
+        }
+
+        let mut target = index
+            .accounts
+            .iter_mut()
+            .find(|account| account.name == old_name)
+            .context(format!("Account '{}' not found", old_name))?;
+
+        let credentials = self.get_credentials(old_name)?;
+        self.store_credentials(new_name, &credentials)?;
+        self.delete_credentials(old_name)?;
+
+        target.name = new_name.to_string();
+        target.last_updated = chrono::Utc::now();
+
+        self.save_index(&index)
     }
 }
 

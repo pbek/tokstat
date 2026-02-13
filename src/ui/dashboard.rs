@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
     Frame, Terminal,
 };
 use std::io;
@@ -45,6 +45,11 @@ pub async fn run(storage: SecureStorage, accounts: Vec<Account>) -> Result<()> {
     Ok(())
 }
 
+enum Mode {
+    Viewing,
+    Renaming { buffer: String },
+}
+
 struct App {
     #[allow(dead_code)]
     storage: SecureStorage,
@@ -53,6 +58,7 @@ struct App {
     selected_index: usize,
     should_quit: bool,
     status_message: String,
+    mode: Mode,
 }
 
 impl App {
@@ -64,6 +70,7 @@ impl App {
             selected_index: 0,
             should_quit: false,
             status_message: "Loading...".to_string(),
+            mode: Mode::Viewing,
         };
 
         app.refresh_quotas().await;
@@ -125,21 +132,68 @@ async fn run_app(
         // Check for user input
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => {
-                        app.should_quit = true;
-                    }
-                    KeyCode::Char('r') => {
-                        app.refresh_quotas().await;
-                        last_refresh = std::time::Instant::now();
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        app.next();
-                    }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        app.previous();
-                    }
-                    _ => {}
+                match &mut app.mode {
+                    Mode::Viewing => match key.code {
+                        KeyCode::Char('q') | KeyCode::Esc => {
+                            app.should_quit = true;
+                        }
+                        KeyCode::Char('r') => {
+                            app.refresh_quotas().await;
+                            last_refresh = std::time::Instant::now();
+                        }
+                        KeyCode::Char('n') => {
+                            if let Some(account) = app.accounts.get(app.selected_index) {
+                                app.mode = Mode::Renaming {
+                                    buffer: account.name.clone(),
+                                };
+                                app.status_message =
+                                    "Renaming mode: press Enter to confirm, Esc to cancel"
+                                        .to_string();
+                            }
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            app.next();
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            app.previous();
+                        }
+                        _ => {}
+                    },
+                    Mode::Renaming { buffer } => match key.code {
+                        KeyCode::Enter => {
+                            if let Some(account) = app.accounts.get(app.selected_index) {
+                                let trimmed = buffer.trim();
+                                if trimmed.is_empty() {
+                                    app.status_message = "Name cannot be empty".to_string();
+                                } else if let Err(err) =
+                                    app.storage.rename_account(&account.name, trimmed)
+                                {
+                                    app.status_message = format!("Rename failed: {}", err);
+                                } else {
+                                    if let Some(target) = app.accounts.get_mut(app.selected_index) {
+                                        target.name = trimmed.to_string();
+                                    }
+                                    app.status_message = "Account renamed".to_string();
+                                    app.mode = Mode::Viewing;
+                                    app.refresh_quotas().await;
+                                    last_refresh = std::time::Instant::now();
+                                }
+                            }
+                        }
+                        KeyCode::Esc => {
+                            app.mode = Mode::Viewing;
+                            app.status_message = "Rename cancelled".to_string();
+                        }
+                        KeyCode::Backspace => {
+                            buffer.pop();
+                        }
+                        KeyCode::Char(c) => {
+                            if !c.is_control() {
+                                buffer.push(c);
+                            }
+                        }
+                        _ => {}
+                    },
                 }
             }
         }
@@ -209,6 +263,13 @@ fn ui(f: &mut Frame, app: &App) {
             ),
             Span::raw(" to refresh, "),
             Span::styled(
+                "n",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" to rename, "),
+            Span::styled(
                 "↑↓",
                 Style::default()
                     .fg(Color::Yellow)
@@ -223,6 +284,27 @@ fn ui(f: &mut Frame, app: &App) {
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(footer, chunks[2]);
+
+    if let Mode::Renaming { buffer } = &app.mode {
+        let area = centered_rect(40, 20, f.size());
+        f.render_widget(Clear, area);
+        let prompt = Paragraph::new(vec![
+            Line::from(Span::styled(
+                "Rename Account",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from("Press Enter to confirm, Esc to cancel"),
+            Line::from(""),
+            Line::from(buffer.as_str()),
+        ])
+        .alignment(Alignment::Left)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Rename Account"),
+        );
+        f.render_widget(prompt, area);
+    }
 }
 
 fn render_account_list(f: &mut Frame, app: &App, area: Rect) {
@@ -413,4 +495,24 @@ fn get_usage_color(ratio: f64) -> Color {
     } else {
         Color::Red
     }
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(vertical[1])[1]
 }
