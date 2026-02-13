@@ -51,9 +51,6 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             binary_name: tokstat
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            binary_name: tokstat
           - target: aarch64-apple-darwin
             os: macos-latest
             binary_name: tokstat
