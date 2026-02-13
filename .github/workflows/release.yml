@@ -130,13 +130,11 @@ jobs:
 
             Download the appropriate binary for your platform:
             - Linux (x86_64): `tokstat-*-x86_64-unknown-linux-gnu.tar.gz`
-            - macOS (Intel): `tokstat-*-x86_64-apple-darwin.tar.gz`
             - macOS (Apple Silicon): `tokstat-*-aarch64-apple-darwin.tar.gz`
-            - Windows: `tokstat-*-x86_64-pc-windows-msvc.zip`
 
             Or install via Nix:
             ```bash
-            nix build github:yourusername/tokstat/v${{ needs.extract-version.outputs.version }}
+            nix build github:pbek/tokstat/v${{ needs.extract-version.outputs.version }}
             ```
           files: artifacts/*
           draft: false

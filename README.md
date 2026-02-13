@@ -25,14 +25,14 @@ More providers coming soon! See [AGENTS.md](AGENTS.md) for the roadmap of AI age
 
 ```bash
 # Run directly
-nix run github:yourusername/tokstat
+nix run github:pbek/tokstat
 
 # Install to profile
-nix profile install github:yourusername/tokstat
+nix profile install github:pbek/tokstat
 
 # Add to your NixOS configuration
 {
-  inputs.tokstat.url = "github:yourusername/tokstat";
+  inputs.tokstat.url = "github:pbek/tokstat";
 
   # Then in your configuration:
   environment.systemPackages = [
