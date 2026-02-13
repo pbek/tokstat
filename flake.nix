@@ -20,12 +20,17 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs {
-          inherit system overlays;
+        # Separate pkgs instances: one with overlay for building, one without for outputs
+        pkgsWithOverlay = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
         };
 
-        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+        pkgs = import nixpkgs {
+          inherit system;
+        };
+
+        rustToolchain = pkgsWithOverlay.rust-bin.stable.latest.default.override {
           extensions = [
             "rust-src"
             "rust-analyzer"
