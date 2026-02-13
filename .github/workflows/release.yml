@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    branches: [release]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  extract-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      changelog: ${{ steps.get_changelog.outputs.changelog }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from Cargo.toml
+        id: get_version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Found version: $VERSION"
+
+      - name: Extract changelog for version
+        id: get_changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          # Extract changelog section for this version
+          CHANGELOG=$(awk '/^## \['"$VERSION"'\]/{flag=1;next}/^## \[/{flag=0}flag' CHANGELOG.md)
+          # Escape special characters for GitHub Actions
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+  build:
+    needs: extract-version
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary_name: tokstat
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            binary_name: tokstat
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            binary_name: tokstat
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            binary_name: tokstat.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Enable Nix Flakes
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Install devenv
+        if: runner.os != 'Windows'
+        run: nix profile install --accept-flake-config nixpkgs#devenv
+
+      - name: Build binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          devenv shell -- cargo build --release --target ${{ matrix.target }}
+
+      - name: Build binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+        shell: bash
+
+      - name: Package binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../tokstat-${{ needs.extract-version.outputs.version }}-${{ matrix.target }}.tar.gz ${{ matrix.binary_name }}
+          cd ../../..
+
+      - name: Package binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ../../../tokstat-${{ needs.extract-version.outputs.version }}-${{ matrix.target }}.zip ${{ matrix.binary_name }}
+          cd ../../..
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tokstat-${{ matrix.target }}
+          path: |
+            tokstat-${{ needs.extract-version.outputs.version }}-${{ matrix.target }}.*
+
+  release:
+    needs: [extract-version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: |
+          ls -la artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.extract-version.outputs.version }}
+          name: tokstat v${{ needs.extract-version.outputs.version }}
+          body: |
+            ## Changelog
+
+            ${{ needs.extract-version.outputs.changelog }}
+
+            ## Installation
+
+            Download the appropriate binary for your platform:
+            - Linux (x86_64): `tokstat-*-x86_64-unknown-linux-gnu.tar.gz`
+            - macOS (Intel): `tokstat-*-x86_64-apple-darwin.tar.gz`
+            - macOS (Apple Silicon): `tokstat-*-aarch64-apple-darwin.tar.gz`
+            - Windows: `tokstat-*-x86_64-pc-windows-msvc.zip`
+
+            Or install via Nix:
+            ```bash
+            nix build github:yourusername/tokstat/v${{ needs.extract-version.outputs.version }}
+            ```
+          files: artifacts/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
