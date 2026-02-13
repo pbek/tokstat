@@ -1,8 +1,11 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     branches: [release]
+    tags-ignore:
+      - "*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
