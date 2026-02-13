@@ -57,9 +57,6 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             binary_name: tokstat
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            binary_name: tokstat.exe
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
