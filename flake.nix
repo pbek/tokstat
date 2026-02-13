@@ -4,10 +4,6 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -15,46 +11,13 @@
       self,
       nixpkgs,
       flake-utils,
-      rust-overlay,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        # Separate pkgs instances: one with overlay for building, one without for outputs
-        pkgsWithOverlay = import nixpkgs {
-          inherit system;
-          overlays = [ (import rust-overlay) ];
-        };
-
         pkgs = import nixpkgs {
           inherit system;
         };
-
-        rustToolchain = pkgsWithOverlay.rust-bin.stable.latest.default.override {
-          extensions = [
-            "rust-src"
-            "rust-analyzer"
-          ];
-        };
-
-        # Native build inputs for different platforms
-        nativeBuildInputs = with pkgs; [
-          rustToolchain
-          pkg-config
-          installShellFiles
-        ];
-
-        buildInputs =
-          with pkgs;
-          [
-            openssl
-            dbus
-          ]
-          ++ lib.optionals stdenv.isDarwin [
-            darwin.apple_sdk.frameworks.Security
-            darwin.apple_sdk.frameworks.CoreFoundation
-            darwin.apple_sdk.frameworks.SystemConfiguration
-          ];
 
       in
       {
@@ -69,7 +32,22 @@
               lockFile = ./Cargo.lock;
             };
 
-            inherit nativeBuildInputs buildInputs;
+            nativeBuildInputs = with pkgs; [
+              pkg-config
+              installShellFiles
+            ];
+
+            buildInputs =
+              with pkgs;
+              [
+                openssl
+                dbus
+              ]
+              ++ lib.optionals stdenv.isDarwin [
+                darwin.apple_sdk.frameworks.Security
+                darwin.apple_sdk.frameworks.CoreFoundation
+                darwin.apple_sdk.frameworks.SystemConfiguration
+              ];
 
             # For keyring support
             PKG_CONFIG_PATH = "${pkgs.dbus.dev}/lib/pkgconfig";
