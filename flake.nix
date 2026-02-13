@@ -100,29 +100,6 @@
           };
         };
 
-        # Development shell
-        devShells.default = pkgs.mkShell {
-          buildInputs =
-            nativeBuildInputs
-            ++ buildInputs
-            ++ (with pkgs; [
-              cargo-watch
-              cargo-edit
-              cargo-audit
-              rust-analyzer
-            ]);
-
-          shellHook = ''
-            echo "🦀 Rust development environment loaded"
-            echo "Run 'cargo run' to start the application"
-            echo "Run 'cargo build --release' for optimized build"
-          '';
-
-          # Environment variables for development
-          RUST_BACKTRACE = "1";
-          PKG_CONFIG_PATH = "${pkgs.dbus.dev}/lib/pkgconfig";
-        };
-
         # NixOS module (optional, for system-wide installation)
         nixosModules.default =
           { config, lib, ... }:
