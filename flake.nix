@@ -19,12 +19,15 @@
           inherit system;
         };
 
+        # Read version from Cargo.toml
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
       in
       {
         packages = {
-          default = pkgs.rustPlatform.buildRustPackage {
+          default = pkgs.rustPlatform.buildRustPackage rec {
             pname = "tokstat";
-            version = "0.1.0";
+            inherit (cargoToml.package) version;
 
             src = ./.;
 
