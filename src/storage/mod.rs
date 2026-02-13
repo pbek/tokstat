@@ -152,7 +152,7 @@ impl SecureStorage {
             bail!("An account named '{}' already exists", new_name);
         }
 
-        let mut target = index
+        let target = index
             .accounts
             .iter_mut()
             .find(|account| account.name == old_name)
