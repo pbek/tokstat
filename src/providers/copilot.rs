@@ -11,6 +11,12 @@ pub struct CopilotCredentials {
 
 pub struct CopilotProvider;
 
+// NOTE: GitHub does not provide a public API for individual Copilot usage data.
+// The endpoint used below is an internal endpoint that may not be accessible
+// to regular users. Copilot usage is typically only available through:
+// 1. The GitHub web interface (https://github.com/settings/copilot)
+// 2. Organization-level APIs (for enterprise admins)
+// 3. GitHub CLI (gh copilot usage) - which may use internal endpoints
 #[async_trait::async_trait]
 impl Provider for CopilotProvider {
     async fn fetch_quota(&self, credentials: &str) -> Result<QuotaInfo> {
@@ -40,7 +46,21 @@ impl Provider for CopilotProvider {
             .context("Failed to fetch Copilot usage")?;
 
         if !response.status().is_success() {
-            anyhow::bail!("Failed to fetch Copilot quota: {}", response.status());
+            let status = response.status();
+            if status == 404 {
+                anyhow::bail!(
+                    "Copilot usage API not accessible (404). GitHub doesn't provide a public API \
+                     for individual Copilot usage. Please check your usage at: \
+                     https://github.com/settings/copilot"
+                );
+            } else if status == 401 || status == 403 {
+                anyhow::bail!(
+                    "Access denied to Copilot usage API ({}). Your token may not have the required permissions.",
+                    status
+                );
+            } else {
+                anyhow::bail!("Failed to fetch Copilot quota: {}", status);
+            }
         }
 
         let usage_data: CopilotUsageResponse = response

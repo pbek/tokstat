@@ -74,6 +74,7 @@ impl App {
     async fn refresh_quotas(&mut self) {
         self.status_message = "Refreshing quota information...".to_string();
         self.quotas.clear();
+        let mut has_error = false;
 
         for account in &self.accounts {
             match crate::providers::fetch_quota(account).await {
@@ -83,11 +84,15 @@ impl App {
                 }
                 Err(e) => {
                     self.status_message = format!("Error fetching {}: {}", account.name, e);
+                    has_error = true;
                 }
             }
         }
 
-        self.status_message = format!("Last updated: {}", chrono::Local::now().format("%H:%M:%S"));
+        if !has_error {
+            self.status_message =
+                format!("Last updated: {}", chrono::Local::now().format("%H:%M:%S"));
+        }
     }
 
     fn next(&mut self) {
@@ -247,7 +252,14 @@ fn render_account_list(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
     if app.quotas.is_empty() {
-        let message = Paragraph::new("No quota data available")
+        // Show error status if available, otherwise show generic message
+        let message_text = if app.status_message.starts_with("Error") {
+            format!("Failed to fetch quota data\n\n{}", app.status_message)
+        } else {
+            "No quota data available".to_string()
+        };
+
+        let message = Paragraph::new(message_text)
             .alignment(Alignment::Center)
             .block(
                 Block::default()
