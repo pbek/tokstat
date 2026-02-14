@@ -51,6 +51,7 @@ enum Mode {
     Viewing,
     Renaming { buffer: String },
     CreatingAccount { selected_provider: usize },
+    Deleting,
 }
 
 struct App {
@@ -160,6 +161,15 @@ async fn run_app(
                                     selected_provider: 0,
                                 };
                                 app.status_message = "Select provider: ↑↓ to navigate, Enter to select, Esc to cancel".to_string();
+                            }
+                            KeyCode::Char('d') => {
+                                if let Some(account) = app.accounts.get(app.selected_index) {
+                                    app.mode = Mode::Deleting;
+                                    app.status_message = format!(
+                                        "Delete account '{}'? Press Enter to confirm, Esc to cancel",
+                                        account.name
+                                    );
+                                }
                             }
                             KeyCode::Down | KeyCode::Char('j') => {
                                 app.next();
@@ -287,6 +297,47 @@ async fn run_app(
                         }
                         _ => {}
                     },
+                    Mode::Deleting => match key.code {
+                        KeyCode::Enter => {
+                            if let Some(account) = app.accounts.get(app.selected_index) {
+                                let account_name = account.name.clone();
+                                match app.storage.remove_account(&account_name) {
+                                    Ok(()) => {
+                                        // Reload accounts
+                                        match app.storage.list_accounts() {
+                                            Ok(accounts) => {
+                                                app.accounts = accounts;
+                                                if app.accounts.is_empty() {
+                                                    app.selected_index = 0;
+                                                } else if app.selected_index >= app.accounts.len() {
+                                                    app.selected_index = app.accounts.len() - 1;
+                                                }
+                                                app.quotas.clear();
+                                                app.status_message =
+                                                    format!("Account '{}' deleted", account_name);
+                                                app.refresh_quotas().await;
+                                                last_refresh = std::time::Instant::now();
+                                            }
+                                            Err(e) => {
+                                                app.status_message =
+                                                    format!("Error reloading accounts: {}", e);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        app.status_message =
+                                            format!("Failed to delete account: {}", e);
+                                    }
+                                }
+                            }
+                            app.mode = Mode::Viewing;
+                        }
+                        KeyCode::Esc => {
+                            app.mode = Mode::Viewing;
+                            app.status_message = "Delete cancelled".to_string();
+                        }
+                        _ => {}
+                    },
                 }
             }
         }
@@ -370,6 +421,13 @@ fn ui(f: &mut Frame, app: &App) {
             ),
             Span::raw(" for new, "),
             Span::styled(
+                "d",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" to delete, "),
+            Span::styled(
                 "↑↓",
                 Style::default()
                     .fg(Color::Yellow)
@@ -435,6 +493,45 @@ fn ui(f: &mut Frame, app: &App) {
         );
 
         f.render_widget(list, area);
+    }
+
+    if let Mode::Deleting = &app.mode {
+        let area = centered_rect(50, 30, f.size());
+        f.render_widget(Clear, area);
+
+        let account_name = app
+            .accounts
+            .get(app.selected_index)
+            .map(|a| a.name.clone())
+            .unwrap_or_default();
+
+        let prompt = Paragraph::new(vec![
+            Line::from(Span::styled(
+                "Delete Account?",
+                Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("Are you sure you want to delete account "),
+                Span::styled(
+                    account_name,
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                        .fg(Color::Yellow),
+                ),
+                Span::raw("?"),
+            ]),
+            Line::from(""),
+            Line::from("Press Enter to confirm, Esc to cancel"),
+        ])
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Confirm Delete")
+                .title_alignment(Alignment::Center),
+        );
+        f.render_widget(prompt, area);
     }
 }
 

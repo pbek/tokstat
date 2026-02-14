@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Opens provider selector popup with available providers (GitHub Copilot, OpenRouter)
   - Temporarily exits TUI to run the appropriate login flow
   - Automatically reloads accounts and refreshes quota data after successful creation
+- Account deletion from dashboard using `d` key
+  - Shows confirmation dialog before deleting
+  - Press Enter to confirm, Esc to cancel
+  - Automatically reloads accounts and quota data after deletion
 
 ### Changed
 
