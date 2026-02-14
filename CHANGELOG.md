@@ -36,19 +36,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `r` (lowercase) now triggers rename mode
 - Fixed alignment of right-side panels in dashboard - requests panel now properly aligned with account info panel
 - Added "Requests" title/label to the requests panel for better clarity
+- **Updated dashboard with beautiful visual gauges**
+  - All metrics (Requests, Tokens, Cost) now displayed as color-coded progress bars
+  - Consistent styling with the CLI output: Green (<50%), Yellow (50-80%), Red (>80%)
+  - Dark gray borders with colored progress indicators
+  - Shows remaining requests and percentages for all metrics
+- **Smart terminal detection with automatic fallback**
+  - Detects when output is being piped (non-interactive)
+  - Automatically falls back to clean text-only output when piping
+  - Preserves all information in an easy-to-parse format
+  - No ANSI escape codes in piped output for better script compatibility
 - Updated dashboard color scheme to use only predefined colors
   - Header now uses multi-color scheme: LightMagenta (tokstat), Magenta (separator), LightCyan (subtitle)
   - Header border changed to Magenta
   - Selection highlight changed from Cyan to Magenta for consistency
   - Removed all RGB color values for better terminal compatibility
 - Completely redesigned the default `tokstat` output (when run without subcommands)
-  - Added colorful header with "🚀 TOKEN STATUS DASHBOARD 🚀" banner
-  - Each account now displayed in a beautiful box-drawing frame
-  - Provider-specific emojis (🤖 for Copilot, 🌐 for OpenRouter, 🔌 for others)
-  - Color-coded usage indicators: ✓ green (<50%), ⚠ yellow (50-80%), ✗ red (>80%)
-  - Enhanced formatting with bold labels, bright colors, and emojis
-  - Added helpful tip at the bottom suggesting the interactive dashboard
-- Added `--json` flag for scriptable JSON output
+  - **Default output now uses beautiful colored CLI display**
+    - Box-drawing characters for elegant account cards with magenta borders
+    - Visual progress bars for Requests, Tokens, and Cost metrics
+    - Color-coded indicators: Green (<50%), Yellow (50-80%), Red (>80%)
+    - Provider-specific emojis (🤖 for Copilot, 🌐 for OpenRouter, 🔌 for others)
+    - No alternate screen needed - displays inline with scrollback preserved
+  - Added `--json` flag for scriptable JSON output
   - Use `tokstat --json` to output account data as structured JSON
   - Perfect for scripting and automation (pipe to `jq`, etc.)
   - Includes all account details: name, provider, usage, limits, timestamps

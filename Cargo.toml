@@ -17,6 +17,7 @@ clap_complete = "4.5"
 
 # Terminal colors
 colored = "2.1"
+atty = "0.2"
 
 # TUI
 ratatui = "0.26"

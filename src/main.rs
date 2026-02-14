@@ -224,115 +224,218 @@ async fn show_token_status(storage: &storage::SecureStorage, json_output: bool) 
             json_accounts.push(account_json);
         }
         println!("{}", serde_json::to_string_pretty(&json_accounts)?);
+    } else if atty::is(atty::Stream::Stdout) {
+        // Fancy CLI output with colors and box drawing (default)
+        render_status_fancy_cli(&accounts, storage).await?;
     } else {
-        // Beautiful table output
-        // Beautiful header
-        println!(
-            "\n{}",
-            "╔══════════════════════════════════════════════════════════════════╗".bright_magenta()
-        );
-        println!(
-            "{}",
-            "║                    🚀  TOKEN STATUS DASHBOARD  🚀                ║".bright_magenta()
-        );
-        println!(
-            "{}",
-            "╚══════════════════════════════════════════════════════════════════╝".bright_magenta()
-        );
-
-        for account in accounts {
-            let provider_emoji = match account.provider.as_str() {
-                "copilot" => "🤖",
-                "openrouter" => "🌐",
-                _ => "🔌",
-            };
-
-            // Account header with box drawing
-            println!(
-                "\n{} {}",
-                "┌".bright_magenta(),
-                "─".repeat(64).bright_magenta()
-            );
-            println!(
-                "{}  {} {} {} ({})",
-                "│".bright_magenta(),
-                provider_emoji,
-                account.name.bold().bright_white(),
-                "via".dimmed(),
-                account.provider.bright_cyan()
-            );
-            println!(
-                "{} {}",
-                "├".bright_magenta(),
-                "─".repeat(64).bright_magenta()
-            );
-
-            match providers::fetch_quota(&account).await {
-                Ok(quota) => {
-                    // Requests
-                    if let Some(requests) = quota.usage.requests_made {
-                        let requests_info = format_requests_line(&quota, requests);
-                        println!("{}  {}", "│".bright_magenta(), requests_info);
-                    }
-
-                    // Tokens
-                    if let Some(tokens) = quota.usage.tokens_used {
-                        let tokens_info = format_tokens_line(&quota, tokens);
-                        println!("{}  {}", "│".bright_magenta(), tokens_info);
-                    }
-
-                    // Cost
-                    if let Some(cost) = quota.usage.cost {
-                        let cost_info = format_cost_line(&quota, cost);
-                        println!("{}  {}", "│".bright_magenta(), cost_info);
-                    }
-
-                    // Reset date
-                    let reset_text = format_datetime(quota.reset_date);
-                    println!(
-                        "{}  {} {}",
-                        "│".bright_magenta(),
-                        "🔄".dimmed(),
-                        format!("Reset: {}", reset_text).dimmed()
-                    );
-
-                    // Last updated
-                    let updated_text = format_datetime(Some(quota.last_updated));
-                    println!(
-                        "{}  {} {}",
-                        "│".bright_magenta(),
-                        "⏱️ ".dimmed(),
-                        format!("Updated: {}", updated_text).dimmed()
-                    );
-                }
-                Err(err) => {
-                    println!(
-                        "{}  {} {}",
-                        "│".bright_magenta(),
-                        "❌".red(),
-                        err.to_string().red()
-                    );
-                }
-            }
-
-            println!(
-                "{} {}",
-                "└".bright_magenta(),
-                "─".repeat(64).bright_magenta()
-            );
-        }
-
-        // Footer
-        println!(
-            "\n{}",
-            "💡 Tip: Run 'tokstat dashboard' for an interactive TUI experience".dimmed()
-        );
+        // Plain text fallback when piping
+        render_status_text_only(&accounts, storage).await?;
     }
 
     Ok(())
 }
 
-fn format_requests_line(quota: &providers::QuotaInfo, requests: u64) -> String {
+async fn render_status_text_only(
+    accounts: &[crate::storage::Account],
+    _storage: &storage::SecureStorage,
+) -> Result<()> {
+    // Fetch all quotas first
+    let mut account_data: Vec<(
+        &crate::storage::Account,
+        anyhow::Result<crate::providers::QuotaInfo>,
+    )> = Vec::new();
+    for account in accounts {
+        let quota_result = crate::providers::fetch_quota(account).await;
+        account_data.push((account, quota_result));
+    }
+
+    println!("Token Status");
+    println!("{}", "=".repeat(60));
+
+    for (account, quota_result) in account_data {
+        println!(
+            "\n{} ({}) - {}",
+            account.name, account.provider, account.name
+        );
+
+        match quota_result {
+            Ok(quota) => {
+                // Requests
+                if let Some(requests) = quota.usage.requests_made {
+                    if let Some(max_requests) = quota.limits.as_ref().and_then(|l| l.max_requests) {
+                        let percent = (requests as f64 / max_requests as f64) * 100.0;
+                        println!(
+                            "  Requests: {} / {} ({:.1}%)",
+                            format_number(requests),
+                            format_number(max_requests),
+                            percent
+                        );
+                    } else {
+                        println!("  Requests: {}", format_number(requests));
+                    }
+                }
+
+                // Tokens
+                if let Some(tokens) = quota.usage.tokens_used {
+                    if let Some(max_tokens) = quota.limits.as_ref().and_then(|l| l.max_tokens) {
+                        let percent = (tokens as f64 / max_tokens as f64) * 100.0;
+                        println!(
+                            "  Tokens: {} / {} ({:.1}%)",
+                            format_number(tokens),
+                            format_number(max_tokens),
+                            percent
+                        );
+                    } else {
+                        println!("  Tokens: {}", format_number(tokens));
+                    }
+                }
+
+                // Cost
+                if let Some(cost) = quota.usage.cost {
+                    if let Some(max_cost) = quota.limits.as_ref().and_then(|l| l.max_cost) {
+                        let percent = (cost / max_cost) * 100.0;
+                        println!("  Cost: ${:.2} / ${:.2} ({:.1}%)", cost, max_cost, percent);
+                    } else {
+                        println!("  Cost: ${:.2}", cost);
+                    }
+                }
+
+                println!("  Reset: {}", format_datetime(quota.reset_date));
+                println!("  Updated: {}", format_datetime(Some(quota.last_updated)));
+            }
+            Err(err) => {
+                println!("  Error: {}", err);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn render_status_fancy_cli(
+    accounts: &[crate::storage::Account],
+    _storage: &storage::SecureStorage,
+) -> Result<()> {
+    use colored::*;
+
+    // Fetch all quotas first
+    let mut account_data: Vec<(
+        &crate::storage::Account,
+        anyhow::Result<crate::providers::QuotaInfo>,
+    )> = Vec::new();
+    for account in accounts {
+        let quota_result = crate::providers::fetch_quota(account).await;
+        account_data.push((account, quota_result));
+    }
+
+    // Beautiful header
+    println!(
+        "\n{}",
+        "╔══════════════════════════════════════════════════════════════════╗".bright_magenta()
+    );
+    println!(
+        "{}",
+        "║                    🚀  TOKEN STATUS DASHBOARD  🚀                ║".bright_magenta()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════════╝".bright_magenta()
+    );
+
+    for (account, quota_result) in account_data {
+        let provider_emoji = match account.provider.as_str() {
+            "copilot" => "🤖",
+            "openrouter" => "🌐",
+            _ => "🔌",
+        };
+
+        // Account header with box drawing
+        println!(
+            "\n{} {}",
+            "┌".bright_magenta(),
+            "─".repeat(64).bright_magenta()
+        );
+        println!(
+            "{}  {} {} {} ({})",
+            "│".bright_magenta(),
+            provider_emoji,
+            account.name.bold().bright_white(),
+            "via".dimmed(),
+            account.provider.bright_cyan()
+        );
+        println!(
+            "{} {}",
+            "├".bright_magenta(),
+            "─".repeat(64).bright_magenta()
+        );
+
+        match quota_result {
+            Ok(quota) => {
+                // Requests with visual bar
+                if let Some(requests) = quota.usage.requests_made {
+                    let requests_info = format_requests_with_bar(&quota, requests);
+                    println!("{}  {}", "│".bright_magenta(), requests_info);
+                }
+
+                // Tokens with visual bar
+                if let Some(tokens) = quota.usage.tokens_used {
+                    let tokens_info = format_tokens_with_bar(&quota, tokens);
+                    println!("{}  {}", "│".bright_magenta(), tokens_info);
+                }
+
+                // Cost with visual bar
+                if let Some(cost) = quota.usage.cost {
+                    let cost_info = format_cost_with_bar(&quota, cost);
+                    println!("{}  {}", "│".bright_magenta(), cost_info);
+                }
+
+                // Reset date
+                let reset_text = format_datetime(quota.reset_date);
+                println!(
+                    "{}  {} {}",
+                    "│".bright_magenta(),
+                    "🔄".dimmed(),
+                    format!("Reset: {}", reset_text).dimmed()
+                );
+
+                // Last updated
+                let updated_text = format_datetime(Some(quota.last_updated));
+                println!(
+                    "{}  {} {}",
+                    "│".bright_magenta(),
+                    "⏱️ ".dimmed(),
+                    format!("Updated: {}", updated_text).dimmed()
+                );
+            }
+            Err(err) => {
+                println!(
+                    "{}  {} {}",
+                    "│".bright_magenta(),
+                    "❌".red(),
+                    err.to_string().red()
+                );
+            }
+        }
+
+        println!(
+            "{} {}",
+            "└".bright_magenta(),
+            "─".repeat(64).bright_magenta()
+        );
+    }
+
+    // Footer
+    println!(
+        "\n{}",
+        "💡 Tip: Run 'tokstat dashboard' for an interactive TUI experience".dimmed()
+    );
+
+    Ok(())
+}
+
+fn format_requests_with_bar(quota: &crate::providers::QuotaInfo, requests: u64) -> String {
+    use colored::*;
+
     if let Some(max_requests) = quota.limits.as_ref().and_then(|limits| limits.max_requests) {
         let remaining = max_requests.saturating_sub(requests);
         let percent_used = if max_requests > 0 {
@@ -341,29 +444,44 @@ fn format_requests_line(quota: &providers::QuotaInfo, requests: u64) -> String {
             0.0
         };
 
-        let (icon, color) = get_usage_indicator(percent_used);
+        let bar_width = 20;
+        let filled = (percent_used / 100.0 * bar_width as f64) as usize;
+        let empty = bar_width - filled;
+
+        let (color_fn, icon): (fn(&str) -> ColoredString, &str) = if percent_used < 50.0 {
+            (|s: &str| s.green(), "✓")
+        } else if percent_used < 80.0 {
+            (|s: &str| s.yellow(), "⚠")
+        } else {
+            (|s: &str| s.red(), "✗")
+        };
+
+        let bar = format!("{}{}", "█".repeat(filled), "░".repeat(empty));
 
         format!(
-            "{} {} {} / {}  {} {} ({:.1}%)",
-            "📊".to_string(),
+            "{} {} {} / {} {} {} {} ({:.1}%)",
+            "📊",
             "Requests:".bright_white().bold(),
             format_number(requests).bright_yellow(),
             format_number(max_requests).bright_white(),
+            color_fn(&bar),
             icon,
-            format!("{} remaining", format_number(remaining)).color(color),
+            format!("{} remaining", format_number(remaining)).normal(),
             percent_used
         )
     } else {
         format!(
             "{} {} {}",
-            "📊".to_string(),
+            "📊",
             "Requests:".bright_white().bold(),
             format_number(requests).bright_yellow()
         )
     }
 }
 
-fn format_tokens_line(quota: &providers::QuotaInfo, tokens: u64) -> String {
+fn format_tokens_with_bar(quota: &crate::providers::QuotaInfo, tokens: u64) -> String {
+    use colored::*;
+
     if let Some(max_tokens) = quota.limits.as_ref().and_then(|limits| limits.max_tokens) {
         let percent_used = if max_tokens > 0 {
             (tokens as f64 / max_tokens as f64) * 100.0
@@ -371,28 +489,43 @@ fn format_tokens_line(quota: &providers::QuotaInfo, tokens: u64) -> String {
             0.0
         };
 
-        let (icon, color) = get_usage_indicator(percent_used);
+        let bar_width = 20;
+        let filled = (percent_used / 100.0 * bar_width as f64) as usize;
+        let empty = bar_width - filled;
+
+        let (color_fn, icon): (fn(&str) -> ColoredString, &str) = if percent_used < 50.0 {
+            (|s: &str| s.green(), "✓")
+        } else if percent_used < 80.0 {
+            (|s: &str| s.yellow(), "⚠")
+        } else {
+            (|s: &str| s.red(), "✗")
+        };
+
+        let bar = format!("{}{}", "█".repeat(filled), "░".repeat(empty));
 
         format!(
-            "{} {} {} / {}  {} ({:.1}%)",
-            "🔤".to_string(),
+            "{} {} {} / {} {} {} ({:.1}%)",
+            "🔤",
             "Tokens:".bright_white().bold(),
             format_number(tokens).bright_yellow(),
             format_number(max_tokens).bright_white(),
-            icon.color(color),
+            color_fn(&bar),
+            icon,
             percent_used
         )
     } else {
         format!(
             "{} {} {}",
-            "🔤".to_string(),
+            "🔤",
             "Tokens:".bright_white().bold(),
             format_number(tokens).bright_yellow()
         )
     }
 }
 
-fn format_cost_line(quota: &providers::QuotaInfo, cost: f64) -> String {
+fn format_cost_with_bar(quota: &crate::providers::QuotaInfo, cost: f64) -> String {
+    use colored::*;
+
     if let Some(max_cost) = quota.limits.as_ref().and_then(|limits| limits.max_cost) {
         let percent_used = if max_cost > 0.0 {
             (cost / max_cost) * 100.0
@@ -400,34 +533,32 @@ fn format_cost_line(quota: &providers::QuotaInfo, cost: f64) -> String {
             0.0
         };
 
-        let (icon, color) = get_usage_indicator(percent_used);
+        let bar_width = 20;
+        let filled = (percent_used / 100.0 * bar_width as f64) as usize;
+        let empty = bar_width - filled;
+
+        let (color_fn, icon): (fn(&str) -> ColoredString, &str) = if percent_used < 50.0 {
+            (|s: &str| s.green(), "✓")
+        } else if percent_used < 80.0 {
+            (|s: &str| s.yellow(), "⚠")
+        } else {
+            (|s: &str| s.red(), "✗")
+        };
+
+        let bar = format!("{}{}", "█".repeat(filled), "░".repeat(empty));
 
         format!(
-            "{} {} {} / {}  {} ({:.1}%)",
-            "💰".to_string(),
+            "{} {} ${:.2} / ${:.2} {} {} ({:.1}%)",
+            "💰",
             "Cost:".bright_white().bold(),
-            format!("${:.2}", cost).bright_yellow(),
-            format!("${:.2}", max_cost).bright_white(),
-            icon.color(color),
+            cost,
+            max_cost,
+            color_fn(&bar),
+            icon,
             percent_used
         )
     } else {
-        format!(
-            "{} {} {}",
-            "💰".to_string(),
-            "Cost:".bright_white().bold(),
-            format!("${:.2}", cost).bright_yellow()
-        )
-    }
-}
-
-fn get_usage_indicator(percent_used: f64) -> (&'static str, &'static str) {
-    if percent_used < 50.0 {
-        ("✓", "green")
-    } else if percent_used < 80.0 {
-        ("⚠", "yellow")
-    } else {
-        ("✗", "red")
+        format!("{} {} ${:.2}", "💰", "Cost:".bright_white().bold(), cost)
     }
 }
 

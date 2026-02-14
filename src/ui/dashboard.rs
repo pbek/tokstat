@@ -723,7 +723,7 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_widget(info, details_chunks[0]);
 
-    // Usage details
+    // Usage details with beautiful gauges
     let usage_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -734,79 +734,112 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
         ])
         .split(details_chunks[1]);
 
-    // Requests made
+    // Requests gauge
     if let Some(requests) = quota.usage.requests_made {
-        let request_limits = quota.limits.as_ref().and_then(|l| l.max_requests);
-
-        let requests_label = if let Some(max_requests) = request_limits {
-            let remaining = max_requests.saturating_sub(requests);
-            let percent_used = if max_requests > 0 {
-                (requests as f64 / max_requests as f64) * 100.0
+        let (ratio, label, color) =
+            if let Some(max_requests) = quota.limits.as_ref().and_then(|l| l.max_requests) {
+                let r = requests as f64 / max_requests as f64;
+                let remaining = max_requests.saturating_sub(requests);
+                let lbl = format!(
+                    "Requests: {} / {} ({} remaining)",
+                    format_number(requests),
+                    format_number(max_requests),
+                    format_number(remaining)
+                );
+                let col = if r < 0.5 {
+                    Color::Green
+                } else if r < 0.8 {
+                    Color::Yellow
+                } else {
+                    Color::Red
+                };
+                (r.min(1.0), lbl, col)
             } else {
-                0.0
+                (
+                    0.0,
+                    format!("Requests: {}", format_number(requests)),
+                    Color::Gray,
+                )
             };
 
-            format!(
-                "Requests: {} / {} ({} remaining, {:.1}% used)",
-                format_number(requests),
-                format_number(max_requests),
-                format_number(remaining),
-                percent_used
+        let gauge = Gauge::default()
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray)),
             )
-        } else {
-            format!("Requests: {}", format_number(requests))
-        };
-
-        let info = Paragraph::new(requests_label)
-            .block(Block::default().borders(Borders::ALL).title("Requests"));
-        f.render_widget(info, usage_chunks[0]);
+            .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
+            .ratio(ratio)
+            .label(label);
+        f.render_widget(gauge, usage_chunks[0]);
     }
 
-    // Tokens used
+    // Tokens gauge
     if let Some(tokens) = quota.usage.tokens_used {
-        let max_tokens = quota
-            .limits
-            .as_ref()
-            .and_then(|l| l.max_tokens)
-            .unwrap_or(tokens * 2);
-
-        let ratio = tokens as f64 / max_tokens as f64;
-        let label = format!(
-            "Tokens: {} / {}",
-            format_number(tokens),
-            format_number(max_tokens)
-        );
+        let (ratio, label, color) =
+            if let Some(max_tokens) = quota.limits.as_ref().and_then(|l| l.max_tokens) {
+                let r = tokens as f64 / max_tokens as f64;
+                let lbl = format!(
+                    "Tokens: {} / {} ({:.1}%)",
+                    format_number(tokens),
+                    format_number(max_tokens),
+                    r * 100.0
+                );
+                let col = if r < 0.5 {
+                    Color::Green
+                } else if r < 0.8 {
+                    Color::Yellow
+                } else {
+                    Color::Red
+                };
+                (r.min(1.0), lbl, col)
+            } else {
+                (
+                    0.0,
+                    format!("Tokens: {}", format_number(tokens)),
+                    Color::Gray,
+                )
+            };
 
         let gauge = Gauge::default()
-            .block(Block::default().borders(Borders::ALL))
-            .gauge_style(Style::default().fg(get_usage_color(ratio)))
-            .ratio(ratio.min(1.0))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            )
+            .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
+            .ratio(ratio)
             .label(label);
-
         f.render_widget(gauge, usage_chunks[1]);
     }
 
-    // Cost
+    // Cost gauge
     if let Some(cost) = quota.usage.cost {
-        let max_cost = quota
-            .limits
-            .as_ref()
-            .and_then(|l| l.max_cost)
-            .unwrap_or(cost * 2.0);
-
-        let ratio = cost / max_cost;
-        let label = if max_cost > 0.0 {
-            format!("Cost: ${:.2} / ${:.2}", cost, max_cost)
-        } else {
-            format!("Cost: ${:.2}", cost)
-        };
+        let (ratio, label, color) =
+            if let Some(max_cost) = quota.limits.as_ref().and_then(|l| l.max_cost) {
+                let r = cost / max_cost;
+                let lbl = format!("Cost: ${:.2} / ${:.2} ({:.1}%)", cost, max_cost, r * 100.0);
+                let col = if r < 0.5 {
+                    Color::Green
+                } else if r < 0.8 {
+                    Color::Yellow
+                } else {
+                    Color::Red
+                };
+                (r.min(1.0), lbl, col)
+            } else {
+                (0.0, format!("Cost: ${:.2}", cost), Color::Gray)
+            };
 
         let gauge = Gauge::default()
-            .block(Block::default().borders(Borders::ALL))
-            .gauge_style(Style::default().fg(get_usage_color(ratio)))
-            .ratio(ratio.min(1.0))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            )
+            .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
+            .ratio(ratio)
             .label(label);
-
         f.render_widget(gauge, usage_chunks[2]);
     }
 }
@@ -818,16 +851,6 @@ fn format_number(n: u64) -> String {
         format!("{:.1}K", n as f64 / 1_000.0)
     } else {
         n.to_string()
-    }
-}
-
-fn get_usage_color(ratio: f64) -> Color {
-    if ratio < 0.5 {
-        Color::Green
-    } else if ratio < 0.8 {
-        Color::Yellow
-    } else {
-        Color::Red
     }
 }
 
