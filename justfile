@@ -16,5 +16,5 @@ debug:
     cargo build
 
 # Run the dashboard via Cargo
-run:
-    cargo run -- dashboard
+run args='':
+    cargo run -- {{ args }}
