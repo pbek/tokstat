@@ -49,8 +49,17 @@ pub async fn run(storage: SecureStorage, accounts: Vec<Account>) -> Result<()> {
 
 enum Mode {
     Viewing,
-    Renaming { buffer: String },
-    CreatingAccount { selected_provider: usize },
+    Renaming {
+        buffer: String,
+    },
+    CreatingAccount {
+        selected_provider: usize,
+    },
+    CreatingAccountName {
+        provider_id: String,
+        provider_name: String,
+        buffer: String,
+    },
     Deleting,
 }
 
@@ -218,6 +227,48 @@ async fn run_app(
                     Mode::CreatingAccount { selected_provider } => match key.code {
                         KeyCode::Enter => {
                             let (provider_id, provider_name) = PROVIDERS[*selected_provider];
+                            // Generate default account name as initial buffer
+                            let default_name =
+                                format!("{}_{}", provider_id, chrono::Utc::now().timestamp());
+                            app.mode = Mode::CreatingAccountName {
+                                provider_id: provider_id.to_string(),
+                                provider_name: provider_name.to_string(),
+                                buffer: default_name,
+                            };
+                            app.status_message =
+                                "Enter account name (optional, press Enter for default):"
+                                    .to_string();
+                        }
+                        KeyCode::Esc => {
+                            app.mode = Mode::Viewing;
+                            app.status_message = "Account creation cancelled".to_string();
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            if *selected_provider < PROVIDERS.len() - 1 {
+                                *selected_provider += 1;
+                            }
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            if *selected_provider > 0 {
+                                *selected_provider -= 1;
+                            }
+                        }
+                        _ => {}
+                    },
+                    Mode::CreatingAccountName {
+                        provider_id,
+                        provider_name,
+                        buffer,
+                    } => match key.code {
+                        KeyCode::Enter => {
+                            let account_name = if buffer.trim().is_empty() {
+                                format!("{}_{}", provider_id, chrono::Utc::now().timestamp())
+                            } else {
+                                buffer.trim().to_string()
+                            };
+                            // Clone the values before changing mode
+                            let provider_id = provider_id.clone();
+                            let provider_name = provider_name.clone();
                             app.mode = Mode::Viewing;
                             app.status_message = format!("Creating {} account...", provider_name);
 
@@ -230,12 +281,8 @@ async fn run_app(
                             )?;
                             terminal.show_cursor()?;
 
-                            // Generate default account name
-                            let account_name =
-                                format!("{}_{}", provider_id, chrono::Utc::now().timestamp());
-
                             // Run the appropriate login flow
-                            let result = match provider_id {
+                            let result = match provider_id.as_str() {
                                 "copilot" => {
                                     crate::auth::copilot::login(&app.storage, &account_name).await
                                 }
@@ -285,14 +332,12 @@ async fn run_app(
                             app.mode = Mode::Viewing;
                             app.status_message = "Account creation cancelled".to_string();
                         }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            if *selected_provider < PROVIDERS.len() - 1 {
-                                *selected_provider += 1;
-                            }
+                        KeyCode::Backspace => {
+                            buffer.pop();
                         }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            if *selected_provider > 0 {
-                                *selected_provider -= 1;
+                        KeyCode::Char(c) => {
+                            if !c.is_control() {
+                                buffer.push(c);
                             }
                         }
                         _ => {}
@@ -513,6 +558,47 @@ fn ui(f: &mut Frame, app: &App) {
         );
 
         f.render_widget(list, area);
+    }
+
+    if let Mode::CreatingAccountName {
+        provider_name,
+        buffer,
+        ..
+    } = &app.mode
+    {
+        let area = centered_rect(50, 25, f.size());
+        f.render_widget(Clear, area);
+
+        let prompt = Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled("Create ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    provider_name,
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                        .fg(Color::LightMagenta),
+                ),
+                Span::styled(" Account", Style::default().add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(""),
+            Line::from("Enter an optional name (or press Enter for default):"),
+            Line::from(buffer.as_str()),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::raw(" to confirm, "),
+                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::raw(" to cancel"),
+            ]),
+        ])
+        .alignment(Alignment::Left)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Account Name")
+                .title_alignment(Alignment::Center),
+        );
+        f.render_widget(prompt, area);
     }
 
     if let Mode::Deleting = &app.mode {

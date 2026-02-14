@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Add new accounts** with `n` key
     - Opens provider selector popup showing available providers (GitHub Copilot, OpenRouter)
     - Navigate providers with ↑↓ arrow keys, Enter to select, Esc to cancel
+    - **Optional custom name input**: After selecting provider, enter an optional account name
+      - Default name auto-generated as `{provider}_{timestamp}`
+      - Type a custom name or press Enter to accept the default
+      - Esc cancels the entire account creation flow
     - Temporarily exits TUI to run the appropriate authentication flow
       - GitHub Copilot: OAuth device flow with user code
       - OpenRouter: API key input with validation
