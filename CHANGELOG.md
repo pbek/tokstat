@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-14
+
+### Changed
+
+- **Breaking**: Changed keyboard shortcuts in dashboard
+  - `R` (uppercase) now refreshes quota information
+  - `r` (lowercase) now triggers rename mode
+- Fixed alignment of right-side panels in dashboard - requests panel now properly aligned with account info panel
+- Added "Requests" title/label to the requests panel for better clarity
+
 ## [0.1.0] - 2026-02-13
 
 ### Added

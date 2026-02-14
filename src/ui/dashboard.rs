@@ -137,11 +137,11 @@ async fn run_app(
                         KeyCode::Char('q') | KeyCode::Esc => {
                             app.should_quit = true;
                         }
-                        KeyCode::Char('r') => {
+                        KeyCode::Char('R') => {
                             app.refresh_quotas().await;
                             last_refresh = std::time::Instant::now();
                         }
-                        KeyCode::Char('n') => {
+                        KeyCode::Char('r') => {
                             if let Some(account) = app.accounts.get(app.selected_index) {
                                 app.mode = Mode::Renaming {
                                     buffer: account.name.clone(),
@@ -256,14 +256,14 @@ fn ui(f: &mut Frame, app: &App) {
             ),
             Span::raw(" to quit, "),
             Span::styled(
-                "r",
+                "R",
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" to refresh, "),
             Span::styled(
-                "n",
+                "r",
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
@@ -392,7 +392,6 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
     // Usage details
     let usage_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(1)
         .constraints([
             Constraint::Length(3),
             Constraint::Length(3),
@@ -400,30 +399,6 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Min(0),
         ])
         .split(details_chunks[1]);
-
-    // Tokens used
-    if let Some(tokens) = quota.usage.tokens_used {
-        let max_tokens = quota
-            .limits
-            .as_ref()
-            .and_then(|l| l.max_tokens)
-            .unwrap_or(tokens * 2);
-
-        let ratio = tokens as f64 / max_tokens as f64;
-        let label = format!(
-            "Tokens: {} / {}",
-            format_number(tokens),
-            format_number(max_tokens)
-        );
-
-        let gauge = Gauge::default()
-            .block(Block::default().borders(Borders::ALL))
-            .gauge_style(Style::default().fg(get_usage_color(ratio)))
-            .ratio(ratio.min(1.0))
-            .label(label);
-
-        f.render_widget(gauge, usage_chunks[0]);
-    }
 
     // Requests made
     if let Some(requests) = quota.usage.requests_made {
@@ -448,8 +423,33 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             format!("Requests: {}", format_number(requests))
         };
 
-        let info = Paragraph::new(requests_label).block(Block::default().borders(Borders::ALL));
-        f.render_widget(info, usage_chunks[1]);
+        let info = Paragraph::new(requests_label)
+            .block(Block::default().borders(Borders::ALL).title("Requests"));
+        f.render_widget(info, usage_chunks[0]);
+    }
+
+    // Tokens used
+    if let Some(tokens) = quota.usage.tokens_used {
+        let max_tokens = quota
+            .limits
+            .as_ref()
+            .and_then(|l| l.max_tokens)
+            .unwrap_or(tokens * 2);
+
+        let ratio = tokens as f64 / max_tokens as f64;
+        let label = format!(
+            "Tokens: {} / {}",
+            format_number(tokens),
+            format_number(max_tokens)
+        );
+
+        let gauge = Gauge::default()
+            .block(Block::default().borders(Borders::ALL))
+            .gauge_style(Style::default().fg(get_usage_color(ratio)))
+            .ratio(ratio.min(1.0))
+            .label(label);
+
+        f.render_widget(gauge, usage_chunks[1]);
     }
 
     // Cost
