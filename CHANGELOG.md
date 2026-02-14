@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Header border changed to Magenta
   - Selection highlight changed from Cyan to Magenta for consistency
   - Removed all RGB color values for better terminal compatibility
+- Completely redesigned the default `tokstat` output (when run without subcommands)
+  - Added colorful header with "🚀 TOKEN STATUS DASHBOARD 🚀" banner
+  - Each account now displayed in a beautiful box-drawing frame
+  - Provider-specific emojis (🤖 for Copilot, 🌐 for OpenRouter, 🔌 for others)
+  - Color-coded usage indicators: ✓ green (<50%), ⚠ yellow (50-80%), ✗ red (>80%)
+  - Enhanced formatting with bold labels, bright colors, and emojis
+  - Added helpful tip at the bottom suggesting the interactive dashboard
 
 ## [0.1.0] - 2026-02-13
 
