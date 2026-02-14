@@ -351,7 +351,7 @@ async fn render_status_fancy_cli(
 
         // Account header with box drawing
         println!(
-            "\n{} {}",
+            "\n{}{}",
             "┌".bright_magenta(),
             "─".repeat(64).bright_magenta()
         );
@@ -364,7 +364,7 @@ async fn render_status_fancy_cli(
             account.provider.bright_cyan()
         );
         println!(
-            "{} {}",
+            "{}{}",
             "├".bright_magenta(),
             "─".repeat(64).bright_magenta()
         );
@@ -418,7 +418,7 @@ async fn render_status_fancy_cli(
         }
 
         println!(
-            "{} {}",
+            "{}{}",
             "└".bright_magenta(),
             "─".repeat(64).bright_magenta()
         );
