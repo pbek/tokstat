@@ -48,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Color-coded usage indicators: ✓ green (<50%), ⚠ yellow (50-80%), ✗ red (>80%)
   - Enhanced formatting with bold labels, bright colors, and emojis
   - Added helpful tip at the bottom suggesting the interactive dashboard
+- Added `--json` flag for scriptable JSON output
+  - Use `tokstat --json` to output account data as structured JSON
+  - Perfect for scripting and automation (pipe to `jq`, etc.)
+  - Includes all account details: name, provider, usage, limits, timestamps
+  - Failed quota fetches include error messages in the JSON
+  - Empty accounts list outputs `[]` for easy parsing
 
 ## [0.1.0] - 2026-02-13
 

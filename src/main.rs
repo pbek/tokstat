@@ -19,6 +19,10 @@ struct Cli {
     #[arg(long = "generate", value_enum)]
     generator: Option<Shell>,
 
+    /// Output data in JSON format (for scripting)
+    #[arg(long = "json")]
+    json: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -160,126 +164,170 @@ async fn main() -> Result<()> {
             }
         },
         None => {
-            show_token_status(&storage).await?;
+            show_token_status(&storage, cli.json).await?;
         }
     }
 
     Ok(())
 }
 
-async fn show_token_status(storage: &storage::SecureStorage) -> Result<()> {
+async fn show_token_status(storage: &storage::SecureStorage, json_output: bool) -> Result<()> {
     let accounts = storage.list_accounts()?;
 
     if accounts.is_empty() {
-        println!(
-            "{} No providers configured. Run {} to add an account.",
-            "⚠️".red(),
-            "'tokstat login'".cyan().bold()
-        );
+        if json_output {
+            println!("[]");
+        } else {
+            println!(
+                "{} No providers configured. Run {} to add an account.",
+                "⚠️".red(),
+                "'tokstat login'".cyan().bold()
+            );
+        }
         return Ok(());
     }
 
-    // Beautiful header
-    println!(
-        "\n{}",
-        "╔══════════════════════════════════════════════════════════════════╗".bright_magenta()
-    );
-    println!(
-        "{}",
-        "║                    🚀  TOKEN STATUS DASHBOARD  🚀                ║".bright_magenta()
-    );
-    println!(
-        "{}",
-        "╚══════════════════════════════════════════════════════════════════╝".bright_magenta()
-    );
-
-    for account in accounts {
-        let provider_emoji = match account.provider.as_str() {
-            "copilot" => "🤖",
-            "openrouter" => "🌐",
-            _ => "🔌",
-        };
-
-        // Account header with box drawing
+    if json_output {
+        // JSON output
+        let mut json_accounts = Vec::new();
+        for account in accounts {
+            let quota_result = providers::fetch_quota(&account).await;
+            let account_json = match quota_result {
+                Ok(quota) => {
+                    serde_json::json!({
+                        "name": account.name,
+                        "provider": account.provider,
+                        "usage": {
+                            "requests": quota.usage.requests_made,
+                            "tokens": quota.usage.tokens_used,
+                            "cost": quota.usage.cost
+                        },
+                        "limits": quota.limits.as_ref().map(|l| {
+                            serde_json::json!({
+                                "max_requests": l.max_requests,
+                                "max_tokens": l.max_tokens,
+                                "max_cost": l.max_cost
+                            })
+                        }),
+                        "reset_date": quota.reset_date.map(|dt| dt.to_rfc3339()),
+                        "last_updated": quota.last_updated.to_rfc3339()
+                    })
+                }
+                Err(err) => {
+                    serde_json::json!({
+                        "name": account.name,
+                        "provider": account.provider,
+                        "error": err.to_string()
+                    })
+                }
+            };
+            json_accounts.push(account_json);
+        }
+        println!("{}", serde_json::to_string_pretty(&json_accounts)?);
+    } else {
+        // Beautiful table output
+        // Beautiful header
         println!(
-            "\n{} {}",
-            "┌".bright_magenta(),
-            "─".repeat(64).bright_magenta()
+            "\n{}",
+            "╔══════════════════════════════════════════════════════════════════╗".bright_magenta()
         );
         println!(
-            "{}  {} {} {} ({})",
-            "│".bright_magenta(),
-            provider_emoji,
-            account.name.bold().bright_white(),
-            "via".dimmed(),
-            account.provider.bright_cyan()
+            "{}",
+            "║                    🚀  TOKEN STATUS DASHBOARD  🚀                ║".bright_magenta()
         );
         println!(
-            "{} {}",
-            "├".bright_magenta(),
-            "─".repeat(64).bright_magenta()
+            "{}",
+            "╚══════════════════════════════════════════════════════════════════╝".bright_magenta()
         );
 
-        match providers::fetch_quota(&account).await {
-            Ok(quota) => {
-                // Requests
-                if let Some(requests) = quota.usage.requests_made {
-                    let requests_info = format_requests_line(&quota, requests);
-                    println!("{}  {}", "│".bright_magenta(), requests_info);
+        for account in accounts {
+            let provider_emoji = match account.provider.as_str() {
+                "copilot" => "🤖",
+                "openrouter" => "🌐",
+                _ => "🔌",
+            };
+
+            // Account header with box drawing
+            println!(
+                "\n{} {}",
+                "┌".bright_magenta(),
+                "─".repeat(64).bright_magenta()
+            );
+            println!(
+                "{}  {} {} {} ({})",
+                "│".bright_magenta(),
+                provider_emoji,
+                account.name.bold().bright_white(),
+                "via".dimmed(),
+                account.provider.bright_cyan()
+            );
+            println!(
+                "{} {}",
+                "├".bright_magenta(),
+                "─".repeat(64).bright_magenta()
+            );
+
+            match providers::fetch_quota(&account).await {
+                Ok(quota) => {
+                    // Requests
+                    if let Some(requests) = quota.usage.requests_made {
+                        let requests_info = format_requests_line(&quota, requests);
+                        println!("{}  {}", "│".bright_magenta(), requests_info);
+                    }
+
+                    // Tokens
+                    if let Some(tokens) = quota.usage.tokens_used {
+                        let tokens_info = format_tokens_line(&quota, tokens);
+                        println!("{}  {}", "│".bright_magenta(), tokens_info);
+                    }
+
+                    // Cost
+                    if let Some(cost) = quota.usage.cost {
+                        let cost_info = format_cost_line(&quota, cost);
+                        println!("{}  {}", "│".bright_magenta(), cost_info);
+                    }
+
+                    // Reset date
+                    let reset_text = format_datetime(quota.reset_date);
+                    println!(
+                        "{}  {} {}",
+                        "│".bright_magenta(),
+                        "🔄".dimmed(),
+                        format!("Reset: {}", reset_text).dimmed()
+                    );
+
+                    // Last updated
+                    let updated_text = format_datetime(Some(quota.last_updated));
+                    println!(
+                        "{}  {} {}",
+                        "│".bright_magenta(),
+                        "⏱️ ".dimmed(),
+                        format!("Updated: {}", updated_text).dimmed()
+                    );
                 }
-
-                // Tokens
-                if let Some(tokens) = quota.usage.tokens_used {
-                    let tokens_info = format_tokens_line(&quota, tokens);
-                    println!("{}  {}", "│".bright_magenta(), tokens_info);
+                Err(err) => {
+                    println!(
+                        "{}  {} {}",
+                        "│".bright_magenta(),
+                        "❌".red(),
+                        err.to_string().red()
+                    );
                 }
-
-                // Cost
-                if let Some(cost) = quota.usage.cost {
-                    let cost_info = format_cost_line(&quota, cost);
-                    println!("{}  {}", "│".bright_magenta(), cost_info);
-                }
-
-                // Reset date
-                let reset_text = format_datetime(quota.reset_date);
-                println!(
-                    "{}  {} {}",
-                    "│".bright_magenta(),
-                    "🔄".dimmed(),
-                    format!("Reset: {}", reset_text).dimmed()
-                );
-
-                // Last updated
-                let updated_text = format_datetime(Some(quota.last_updated));
-                println!(
-                    "{}  {} {}",
-                    "│".bright_magenta(),
-                    "⏱️ ".dimmed(),
-                    format!("Updated: {}", updated_text).dimmed()
-                );
             }
-            Err(err) => {
-                println!(
-                    "{}  {} {}",
-                    "│".bright_magenta(),
-                    "❌".red(),
-                    err.to_string().red()
-                );
-            }
+
+            println!(
+                "{} {}",
+                "└".bright_magenta(),
+                "─".repeat(64).bright_magenta()
+            );
         }
 
+        // Footer
         println!(
-            "{} {}",
-            "└".bright_magenta(),
-            "─".repeat(64).bright_magenta()
+            "\n{}",
+            "💡 Tip: Run 'tokstat dashboard' for an interactive TUI experience".dimmed()
         );
     }
-
-    // Footer
-    println!(
-        "\n{}",
-        "💡 Tip: Run 'tokstat dashboard' for an interactive TUI experience".dimmed()
-    );
 
     Ok(())
 }
