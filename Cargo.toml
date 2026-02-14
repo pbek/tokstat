@@ -19,6 +19,9 @@ clap_complete = "4.5"
 colored = "2.1"
 atty = "0.2"
 
+# Unicode width calculation
+unicode-width = "0.1"
+
 # TUI
 ratatui = "0.26"
 crossterm = "0.27"

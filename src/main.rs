@@ -328,18 +328,24 @@ async fn render_status_fancy_cli(
         account_data.push((account, quota_result));
     }
 
+    // Box dimensions
+    const BOX_WIDTH: usize = 80;
+
     // Beautiful header
     println!(
         "\n{}",
-        "╔══════════════════════════════════════════════════════════════════╗".bright_magenta()
+        "╔════════════════════════════════════════════════════════════════════════════════╗"
+            .bright_magenta()
     );
     println!(
         "{}",
-        "║                    🚀  TOKEN STATUS DASHBOARD  🚀                ║".bright_magenta()
+        "║                          🚀  TOKEN STATUS DASHBOARD  🚀                        ║"
+            .bright_magenta()
     );
     println!(
         "{}",
-        "╚══════════════════════════════════════════════════════════════════╝".bright_magenta()
+        "╚════════════════════════════════════════════════════════════════════════════════╝"
+            .bright_magenta()
     );
 
     for (account, quota_result) in account_data {
@@ -349,24 +355,35 @@ async fn render_status_fancy_cli(
             _ => "🔌",
         };
 
-        // Account header with box drawing
+        // Account header with box drawing - fully enclosed
         println!(
-            "\n{}{}",
+            "{}{}{}",
             "┌".bright_magenta(),
-            "─".repeat(64).bright_magenta()
+            "─".repeat(BOX_WIDTH).bright_magenta(),
+            "┐".bright_magenta()
         );
-        println!(
-            "{}  {} {} {} ({})",
-            "│".bright_magenta(),
+
+        // Format header content to fit box width
+        let header_content = format!(
+            "  {} {} {} {}",
             provider_emoji,
             account.name.bold().bright_white(),
             "via".dimmed(),
             account.provider.bright_cyan()
         );
+        let header_line = format!(
+            "{}{}{}",
+            "│".bright_magenta(),
+            pad_to_width(&header_content, BOX_WIDTH),
+            "│".bright_magenta()
+        );
+        println!("{}", header_line);
+
         println!(
-            "{}{}",
+            "{}{}{}",
             "├".bright_magenta(),
-            "─".repeat(64).bright_magenta()
+            "─".repeat(BOX_WIDTH).bright_magenta(),
+            "┤".bright_magenta()
         );
 
         match quota_result {
@@ -374,53 +391,83 @@ async fn render_status_fancy_cli(
                 // Requests with visual bar
                 if let Some(requests) = quota.usage.requests_made {
                     let requests_info = format_requests_with_bar(&quota, requests);
-                    println!("{}  {}", "│".bright_magenta(), requests_info);
+                    let line = format!(
+                        "{}{}{}",
+                        "│".bright_magenta(),
+                        pad_to_width(&format!("  {}", requests_info), BOX_WIDTH),
+                        "│".bright_magenta()
+                    );
+                    println!("{}", line);
                 }
 
                 // Tokens with visual bar
                 if let Some(tokens) = quota.usage.tokens_used {
                     let tokens_info = format_tokens_with_bar(&quota, tokens);
-                    println!("{}  {}", "│".bright_magenta(), tokens_info);
+                    let line = format!(
+                        "{}{}{}",
+                        "│".bright_magenta(),
+                        pad_to_width(&format!("  {}", tokens_info), BOX_WIDTH),
+                        "│".bright_magenta()
+                    );
+                    println!("{}", line);
                 }
 
                 // Cost with visual bar
                 if let Some(cost) = quota.usage.cost {
                     let cost_info = format_cost_with_bar(&quota, cost);
-                    println!("{}  {}", "│".bright_magenta(), cost_info);
+                    let line = format!(
+                        "{}{}{}",
+                        "│".bright_magenta(),
+                        pad_to_width(&format!("  {}", cost_info), BOX_WIDTH),
+                        "│".bright_magenta()
+                    );
+                    println!("{}", line);
                 }
 
                 // Reset date
                 let reset_text = format_datetime(quota.reset_date);
-                println!(
-                    "{}  {} {}",
-                    "│".bright_magenta(),
+                let reset_line = format!(
+                    "  {} {}",
                     "🔄".dimmed(),
                     format!("Reset: {}", reset_text).dimmed()
+                );
+                println!(
+                    "{}{}{}",
+                    "│".bright_magenta(),
+                    pad_to_width(&reset_line, BOX_WIDTH),
+                    "│".bright_magenta()
                 );
 
                 // Last updated
                 let updated_text = format_datetime(Some(quota.last_updated));
-                println!(
-                    "{}  {} {}",
-                    "│".bright_magenta(),
+                let updated_line = format!(
+                    "  {} {}",
                     "⏱️ ".dimmed(),
                     format!("Updated: {}", updated_text).dimmed()
                 );
+                println!(
+                    "{}{}{}",
+                    "│".bright_magenta(),
+                    pad_to_width(&updated_line, BOX_WIDTH),
+                    "│".bright_magenta()
+                );
             }
             Err(err) => {
+                let error_line = format!("  {} {}", "❌".red(), err.to_string().red());
                 println!(
-                    "{}  {} {}",
+                    "{}{}{}",
                     "│".bright_magenta(),
-                    "❌".red(),
-                    err.to_string().red()
+                    pad_to_width(&error_line, BOX_WIDTH),
+                    "│".bright_magenta()
                 );
             }
         }
 
         println!(
-            "{}{}",
+            "{}{}{}",
             "└".bright_magenta(),
-            "─".repeat(64).bright_magenta()
+            "─".repeat(BOX_WIDTH).bright_magenta(),
+            "┘".bright_magenta()
         );
     }
 
@@ -560,6 +607,42 @@ fn format_cost_with_bar(quota: &crate::providers::QuotaInfo, cost: f64) -> Strin
     } else {
         format!("{} {} ${:.2}", "💰", "Cost:".bright_white().bold(), cost)
     }
+}
+
+fn pad_to_width(text: &str, width: usize) -> String {
+    // Strip ANSI escape codes to get the visible text
+    let visible_text = strip_ansi_codes(text);
+    // Calculate the display width of the visible text
+    let display_width = unicode_width::UnicodeWidthStr::width(visible_text.as_str());
+
+    if display_width >= width {
+        text.to_string()
+    } else {
+        let padding = width - display_width;
+        format!("{}{}", text, " ".repeat(padding))
+    }
+}
+
+fn strip_ansi_codes(text: &str) -> String {
+    // Simple ANSI escape code stripping
+    let mut result = String::new();
+    let mut chars = text.chars();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' && chars.as_str().starts_with('[') {
+            // Skip ANSI escape sequence
+            chars.next(); // skip '['
+            for ch in chars.by_ref() {
+                if ch.is_alphabetic() || ch == '@' {
+                    break;
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
 
 fn format_datetime(dt: Option<chrono::DateTime<chrono::Utc>>) -> String {
