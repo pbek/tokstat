@@ -18,6 +18,8 @@ use tokio::time::Duration;
 use crate::providers::QuotaInfo;
 use crate::storage::{Account, SecureStorage};
 
+const PROVIDERS: &[(&str, &str)] = &[("copilot", "GitHub Copilot"), ("openrouter", "OpenRouter")];
+
 pub async fn run(storage: SecureStorage, accounts: Vec<Account>) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
@@ -48,6 +50,7 @@ pub async fn run(storage: SecureStorage, accounts: Vec<Account>) -> Result<()> {
 enum Mode {
     Viewing,
     Renaming { buffer: String },
+    CreatingAccount { selected_provider: usize },
 }
 
 struct App {
@@ -133,32 +136,40 @@ async fn run_app(
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 match &mut app.mode {
-                    Mode::Viewing => match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => {
-                            app.should_quit = true;
-                        }
-                        KeyCode::Char('R') => {
-                            app.refresh_quotas().await;
-                            last_refresh = std::time::Instant::now();
-                        }
-                        KeyCode::Char('r') => {
-                            if let Some(account) = app.accounts.get(app.selected_index) {
-                                app.mode = Mode::Renaming {
-                                    buffer: account.name.clone(),
-                                };
-                                app.status_message =
-                                    "Renaming mode: press Enter to confirm, Esc to cancel"
-                                        .to_string();
+                    Mode::Viewing => {
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => {
+                                app.should_quit = true;
                             }
+                            KeyCode::Char('R') => {
+                                app.refresh_quotas().await;
+                                last_refresh = std::time::Instant::now();
+                            }
+                            KeyCode::Char('r') => {
+                                if let Some(account) = app.accounts.get(app.selected_index) {
+                                    app.mode = Mode::Renaming {
+                                        buffer: account.name.clone(),
+                                    };
+                                    app.status_message =
+                                        "Renaming mode: press Enter to confirm, Esc to cancel"
+                                            .to_string();
+                                }
+                            }
+                            KeyCode::Char('n') => {
+                                app.mode = Mode::CreatingAccount {
+                                    selected_provider: 0,
+                                };
+                                app.status_message = "Select provider: ↑↓ to navigate, Enter to select, Esc to cancel".to_string();
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                app.next();
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                app.previous();
+                            }
+                            _ => {}
                         }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            app.next();
-                        }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            app.previous();
-                        }
-                        _ => {}
-                    },
+                    }
                     Mode::Renaming { buffer } => match key.code {
                         KeyCode::Enter => {
                             if let Some(account) = app.accounts.get(app.selected_index) {
@@ -190,6 +201,88 @@ async fn run_app(
                         KeyCode::Char(c) => {
                             if !c.is_control() {
                                 buffer.push(c);
+                            }
+                        }
+                        _ => {}
+                    },
+                    Mode::CreatingAccount { selected_provider } => match key.code {
+                        KeyCode::Enter => {
+                            let (provider_id, provider_name) = PROVIDERS[*selected_provider];
+                            app.mode = Mode::Viewing;
+                            app.status_message = format!("Creating {} account...", provider_name);
+
+                            // Exit terminal UI temporarily to run login flow
+                            disable_raw_mode()?;
+                            execute!(
+                                terminal.backend_mut(),
+                                LeaveAlternateScreen,
+                                DisableMouseCapture
+                            )?;
+                            terminal.show_cursor()?;
+
+                            // Generate default account name
+                            let account_name =
+                                format!("{}_{}", provider_id, chrono::Utc::now().timestamp());
+
+                            // Run the appropriate login flow
+                            let result = match provider_id {
+                                "copilot" => {
+                                    crate::auth::copilot::login(&app.storage, &account_name).await
+                                }
+                                "openrouter" => {
+                                    crate::auth::openrouter::login(&app.storage, &account_name)
+                                        .await
+                                }
+                                _ => unreachable!(),
+                            };
+
+                            // Restore terminal UI
+                            enable_raw_mode()?;
+                            execute!(
+                                terminal.backend_mut(),
+                                EnterAlternateScreen,
+                                EnableMouseCapture
+                            )?;
+
+                            match result {
+                                Ok(()) => {
+                                    // Reload accounts
+                                    match app.storage.list_accounts() {
+                                        Ok(accounts) => {
+                                            app.accounts = accounts;
+                                            if !app.accounts.is_empty() {
+                                                app.selected_index = app.accounts.len() - 1;
+                                            }
+                                            app.status_message = format!(
+                                                "✓ {} account '{}' added successfully",
+                                                provider_name, account_name
+                                            );
+                                            app.refresh_quotas().await;
+                                            last_refresh = std::time::Instant::now();
+                                        }
+                                        Err(e) => {
+                                            app.status_message =
+                                                format!("Error reloading accounts: {}", e);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    app.status_message = format!("Failed to add account: {}", e);
+                                }
+                            }
+                        }
+                        KeyCode::Esc => {
+                            app.mode = Mode::Viewing;
+                            app.status_message = "Account creation cancelled".to_string();
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            if *selected_provider < PROVIDERS.len() - 1 {
+                                *selected_provider += 1;
+                            }
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            if *selected_provider > 0 {
+                                *selected_provider -= 1;
                             }
                         }
                         _ => {}
@@ -270,6 +363,13 @@ fn ui(f: &mut Frame, app: &App) {
             ),
             Span::raw(" to rename, "),
             Span::styled(
+                "n",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" for new, "),
+            Span::styled(
                 "↑↓",
                 Style::default()
                     .fg(Color::Yellow)
@@ -304,6 +404,37 @@ fn ui(f: &mut Frame, app: &App) {
                 .title("Rename Account"),
         );
         f.render_widget(prompt, area);
+    }
+
+    if let Mode::CreatingAccount { selected_provider } = &app.mode {
+        let area = centered_rect(50, 40, f.size());
+        f.render_widget(Clear, area);
+
+        let items: Vec<ListItem> = PROVIDERS
+            .iter()
+            .enumerate()
+            .map(|(i, (id, name))| {
+                let style = if i == *selected_provider {
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+                let content = format!("{} - {}", id, name);
+                ListItem::new(content).style(style)
+            })
+            .collect();
+
+        let list = List::new(items).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Select Provider")
+                .title_alignment(Alignment::Center),
+        );
+
+        f.render_widget(list, area);
     }
 }
 

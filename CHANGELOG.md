@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-02-14
 
+### Added
+
+- New account creation from dashboard using `n` key
+  - Opens provider selector popup with available providers (GitHub Copilot, OpenRouter)
+  - Temporarily exits TUI to run the appropriate login flow
+  - Automatically reloads accounts and refreshes quota data after successful creation
+
 ### Changed
 
 - **Breaking**: Changed keyboard shortcuts in dashboard
