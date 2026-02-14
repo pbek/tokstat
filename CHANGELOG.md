@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `r` (lowercase) now triggers rename mode
 - Fixed alignment of right-side panels in dashboard - requests panel now properly aligned with account info panel
 - Added "Requests" title/label to the requests panel for better clarity
+- Updated dashboard color scheme to use only predefined colors
+  - Header now uses multi-color scheme: LightMagenta (tokstat), Magenta (separator), LightCyan (subtitle)
+  - Header border changed to Magenta
+  - Selection highlight changed from Cyan to Magenta for consistency
+  - Removed all RGB color values for better terminal compatibility
 
 ## [0.1.0] - 2026-02-13
 

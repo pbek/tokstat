@@ -365,15 +365,35 @@ fn ui(f: &mut Frame, app: &App) {
         ])
         .split(f.size());
 
-    // Header
-    let header = Paragraph::new("tokstat - Token Quota Monitor")
-        .style(
+    // Header with beautiful predefined colors
+    let header_text = Line::from(vec![
+        Span::styled(
+            "tokstat",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(Color::LightMagenta)
                 .add_modifier(Modifier::BOLD),
-        )
+        ),
+        Span::styled(
+            " - ",
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Token Quota Monitor",
+            Style::default()
+                .fg(Color::LightCyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]);
+
+    let header = Paragraph::new(header_text)
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Magenta)),
+        );
     f.render_widget(header, chunks[0]);
 
     // Main content
@@ -475,7 +495,7 @@ fn ui(f: &mut Frame, app: &App) {
                 let style = if i == *selected_provider {
                     Style::default()
                         .fg(Color::Black)
-                        .bg(Color::Cyan)
+                        .bg(Color::Magenta)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
@@ -544,7 +564,7 @@ fn render_account_list(f: &mut Frame, app: &App, area: Rect) {
             let style = if i == app.selected_index {
                 Style::default()
                     .fg(Color::Black)
-                    .bg(Color::Cyan)
+                    .bg(Color::Magenta)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
