@@ -830,16 +830,27 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_widget(info, details_chunks[0]);
 
+    // Determine which gauges to display and build constraints dynamically
+    let has_requests = quota.usage.requests_made.is_some();
+    let has_tokens = quota.usage.tokens_used.is_some();
+    let has_cost = quota.usage.cost.is_some();
+    let gauge_count = [has_requests, has_tokens, has_cost]
+        .iter()
+        .filter(|&&x| x)
+        .count();
+
+    let constraints: Vec<Constraint> = (0..gauge_count)
+        .map(|_| Constraint::Length(3))
+        .chain(std::iter::once(Constraint::Min(0)))
+        .collect();
+
     // Usage details with beautiful gauges
     let usage_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Min(0),
-        ])
+        .constraints(constraints)
         .split(details_chunks[1]);
+
+    let mut gauge_index = 0;
 
     // Requests gauge
     if let Some(requests) = quota.usage.requests_made {
@@ -878,7 +889,8 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
             .ratio(ratio)
             .label(label);
-        f.render_widget(gauge, usage_chunks[0]);
+        f.render_widget(gauge, usage_chunks[gauge_index]);
+        gauge_index += 1;
     }
 
     // Tokens gauge
@@ -917,7 +929,8 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
             .ratio(ratio)
             .label(label);
-        f.render_widget(gauge, usage_chunks[1]);
+        f.render_widget(gauge, usage_chunks[gauge_index]);
+        gauge_index += 1;
     }
 
     // Cost gauge
@@ -947,7 +960,7 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
             .ratio(ratio)
             .label(label);
-        f.render_widget(gauge, usage_chunks[2]);
+        f.render_widget(gauge, usage_chunks[gauge_index]);
     }
 }
 

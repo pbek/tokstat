@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-15
+
+### Fixed
+
+- **Fixed OpenRouter cost panel alignment in dashboard**
+  - Cost gauge now properly aligns with Account Info panel for OpenRouter accounts
+  - Dynamic layout calculation based on which gauges are present (requests, tokens, cost)
+  - Ensures consistent visual alignment across all provider types
+
 ## [0.3.1] - 2026-02-15
 
 ### Fixed
