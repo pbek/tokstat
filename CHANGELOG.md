@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added support for simple date format (YYYY-MM-DD) in addition to RFC3339
   - Reset date now properly displays for GitHub Copilot accounts
 
+### Changed
+
+- **Dashboard now displays quota reset date**
+  - Added "Quota Resets" field to the Account Info section
+  - Shows the date when quota limits reset (YYYY-MM-DD format)
+
 ## [0.2.0] - 2026-02-14
 
 ### Added

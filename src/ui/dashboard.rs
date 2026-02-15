@@ -790,7 +790,7 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
 
     let details_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(6), Constraint::Min(0)])
+        .constraints([Constraint::Length(7), Constraint::Min(0)])
         .split(area);
 
     // Account info
@@ -809,6 +809,18 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
                 Style::default().add_modifier(Modifier::BOLD),
             ),
             Span::raw(quota.last_updated.format("%Y-%m-%d %H:%M:%S").to_string()),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "Quota Resets: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(
+                quota
+                    .reset_date
+                    .map(|dt| dt.format("%Y-%m-%d").to_string())
+                    .unwrap_or_else(|| "Unknown".to_string()),
+            ),
         ]),
     ];
 
