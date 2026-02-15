@@ -2,6 +2,16 @@
 
 A beautiful CLI application to monitor token quotas across multiple AI providers with a stunning TUI dashboard.
 
+## Screenshots
+
+### CLI Output
+
+![CLI Output](doc/tokstat-cli.webp)
+
+### Dashboard
+
+![Dashboard](doc/tokstat-dasboard.webp)
+
 ## Features
 
 - **Multi-Provider Support**: Monitor GitHub Copilot, OpenRouter, and more
