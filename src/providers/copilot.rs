@@ -98,9 +98,18 @@ impl Provider for CopilotProvider {
             .get("quota_reset_date")
             .and_then(Value::as_str)
             .and_then(|value| {
-                chrono::DateTime::parse_from_rfc3339(value)
-                    .ok()
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
+                // Try RFC3339 format first
+                if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(value) {
+                    return Some(dt.with_timezone(&chrono::Utc));
+                }
+                // Try simple date format (e.g., "2026-03-15")
+                if let Ok(date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+                    return Some(chrono::DateTime::from_naive_utc_and_offset(
+                        date.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                        chrono::Utc,
+                    ));
+                }
+                None
             });
 
         Ok(QuotaInfo {

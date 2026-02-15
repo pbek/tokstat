@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prompts user to press `n` to add their first account
   - Allows full TUI configuration from a clean state
 
+### Fixed
+
+- **Fixed Copilot quota reset date parsing**
+  - Added support for simple date format (YYYY-MM-DD) in addition to RFC3339
+  - Reset date now properly displays for GitHub Copilot accounts
+
 ## [0.2.0] - 2026-02-14
 
 ### Added
