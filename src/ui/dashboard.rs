@@ -642,6 +642,46 @@ fn ui(f: &mut Frame, app: &App) {
 }
 
 fn render_account_list(f: &mut Frame, app: &App, area: Rect) {
+    if app.accounts.is_empty() {
+        let welcome_text = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Welcome to ", Style::default().fg(Color::Gray)),
+                Span::styled(
+                    "tokstat",
+                    Style::default()
+                        .fg(Color::LightMagenta)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "No accounts configured yet.",
+                Style::default().fg(Color::Gray),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Press ", Style::default().fg(Color::Gray)),
+                Span::styled(
+                    "n",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " to add your first account",
+                    Style::default().fg(Color::Gray),
+                ),
+            ]),
+        ];
+
+        let welcome = Paragraph::new(welcome_text)
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title("Accounts"));
+        f.render_widget(welcome, area);
+        return;
+    }
+
     let items: Vec<ListItem> = app
         .accounts
         .iter()
@@ -667,6 +707,61 @@ fn render_account_list(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
+    if app.accounts.is_empty() {
+        // Show getting started guide when no accounts configured
+        let guide_text = vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "Getting Started",
+                Style::default()
+                    .fg(Color::LightCyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "tokstat monitors token quotas across multiple AI providers.",
+                Style::default().fg(Color::Gray),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Supported providers:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from(vec![
+                Span::styled("  • ", Style::default().fg(Color::Magenta)),
+                Span::styled("GitHub Copilot", Style::default()),
+                Span::styled(" - AI coding assistant", Style::default().fg(Color::Gray)),
+            ]),
+            Line::from(vec![
+                Span::styled("  • ", Style::default().fg(Color::Magenta)),
+                Span::styled("OpenRouter", Style::default()),
+                Span::styled(" - LLM API aggregator", Style::default().fg(Color::Gray)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Press ", Style::default().fg(Color::Gray)),
+                Span::styled(
+                    "n",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " to add an account and get started",
+                    Style::default().fg(Color::Gray),
+                ),
+            ]),
+        ];
+
+        let guide = Paragraph::new(guide_text).alignment(Alignment::Left).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Quota Details"),
+        );
+        f.render_widget(guide, area);
+        return;
+    }
+
     if app.quotas.is_empty() {
         // Show error status if available, otherwise show generic message
         let message_text = if app.status_message.starts_with("Error") {

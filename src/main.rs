@@ -126,12 +126,6 @@ async fn main() -> Result<()> {
 
             Commands::Dashboard => {
                 let accounts = storage.list_accounts()?;
-
-                if accounts.is_empty() {
-                    println!("No accounts configured. Use 'tokstat login' to add an account.");
-                    return Ok(());
-                }
-
                 ui::dashboard::run(storage, accounts).await?;
             }
 
