@@ -436,7 +436,7 @@ async fn render_status_fancy_cli(
                 let updated_text = format_datetime(Some(quota.last_updated));
                 let updated_line = format!(
                     "  {} {}",
-                    "⏱️ ".dimmed(),
+                    "⏱️".dimmed(),
                     format!("Updated: {}", updated_text).dimmed()
                 );
                 println!(
