@@ -16,7 +16,7 @@ use std::io;
 use tokio::time::Duration;
 
 use crate::providers::QuotaInfo;
-use crate::storage::{Account, SecureStorage};
+use crate::storage::{Account, QuotaSnapshot, SecureStorage};
 
 const PROVIDERS: &[(&str, &str)] = &[("copilot", "GitHub Copilot"), ("openrouter", "OpenRouter")];
 
@@ -64,10 +64,10 @@ enum Mode {
 }
 
 struct App {
-    #[allow(dead_code)]
     storage: SecureStorage,
     accounts: Vec<Account>,
     quotas: Vec<QuotaInfo>,
+    quota_histories: Vec<Vec<QuotaSnapshot>>,
     selected_index: usize,
     should_quit: bool,
     status_message: String,
@@ -80,6 +80,7 @@ impl App {
             storage,
             accounts,
             quotas: Vec::new(),
+            quota_histories: Vec::new(),
             selected_index: 0,
             should_quit: false,
             status_message: "Loading...".to_string(),
@@ -94,17 +95,33 @@ impl App {
     async fn refresh_quotas(&mut self) {
         self.status_message = "Refreshing quota information...".to_string();
         self.quotas.clear();
+        self.quota_histories.clear();
         let mut has_error = false;
 
         for account in &self.accounts {
             match crate::providers::fetch_quota(account).await {
                 Ok(mut quota) => {
                     quota.account_name = account.name.clone();
+
+                    // Store snapshot and check if it changed
+                    let _changed = self.storage.add_quota_snapshot(&account.name, &quota);
+
+                    // Load history for this account
+                    match self.storage.get_quota_history(&account.name) {
+                        Ok(history) => {
+                            self.quota_histories.push(history);
+                        }
+                        Err(_) => {
+                            self.quota_histories.push(Vec::new());
+                        }
+                    }
+
                     self.quotas.push(quota);
                 }
                 Err(e) => {
                     self.status_message = format!("Error fetching {}: {}", account.name, e);
                     has_error = true;
+                    self.quota_histories.push(Vec::new());
                 }
             }
         }
@@ -358,6 +375,7 @@ async fn run_app(
                                                     app.selected_index = app.accounts.len() - 1;
                                                 }
                                                 app.quotas.clear();
+                                                app.quota_histories.clear();
                                                 app.status_message =
                                                     format!("Account '{}' deleted", account_name);
                                                 app.refresh_quotas().await;
@@ -450,7 +468,7 @@ fn ui(f: &mut Frame, app: &App) {
     // Account list
     render_account_list(f, app, main_chunks[0]);
 
-    // Quota details
+    // Quota details (now includes history)
     render_quota_details(f, app, main_chunks[1]);
 
     // Footer
@@ -787,13 +805,39 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
 
     let quota = &app.quotas[app.selected_index];
     let account = &app.accounts[app.selected_index];
+    let history = if app.selected_index < app.quota_histories.len() {
+        &app.quota_histories[app.selected_index]
+    } else {
+        &[] as &[QuotaSnapshot]
+    };
 
-    let details_chunks = Layout::default()
+    // Determine which gauges to display
+    let has_requests = quota.usage.requests_made.is_some();
+    let has_tokens = quota.usage.tokens_used.is_some();
+    let has_cost = quota.usage.cost.is_some();
+    let gauge_count = [has_requests, has_tokens, has_cost]
+        .iter()
+        .filter(|&&x| x)
+        .count();
+
+    // Calculate total height needed for info (7) + gauges (3 each)
+    let info_height = 7u16;
+    let gauges_height = (gauge_count as u16) * 3u16;
+
+    // Build constraints: info panel + gauges (fixed height) + history (fills remaining)
+    let constraints: Vec<Constraint> = vec![
+        Constraint::Length(info_height),
+        Constraint::Length(gauges_height),
+        Constraint::Min(0),
+    ];
+
+    // Split the area
+    let main_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(7), Constraint::Min(0)])
+        .constraints(constraints)
         .split(area);
 
-    // Account info
+    // Account info (first chunk)
     let info_text = vec![
         Line::from(vec![
             Span::styled("Provider: ", Style::default().add_modifier(Modifier::BOLD)),
@@ -828,27 +872,16 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
         .block(Block::default().borders(Borders::ALL).title("Account Info"))
         .wrap(Wrap { trim: true });
 
-    f.render_widget(info, details_chunks[0]);
+    f.render_widget(info, main_chunks[0]);
 
-    // Determine which gauges to display and build constraints dynamically
-    let has_requests = quota.usage.requests_made.is_some();
-    let has_tokens = quota.usage.tokens_used.is_some();
-    let has_cost = quota.usage.cost.is_some();
-    let gauge_count = [has_requests, has_tokens, has_cost]
-        .iter()
-        .filter(|&&x| x)
-        .count();
+    // Gauges section (second chunk) - split vertically for each gauge
+    let gauge_constraints: Vec<Constraint> =
+        (0..gauge_count).map(|_| Constraint::Length(3)).collect();
 
-    let constraints: Vec<Constraint> = (0..gauge_count)
-        .map(|_| Constraint::Length(3))
-        .chain(std::iter::once(Constraint::Min(0)))
-        .collect();
-
-    // Usage details with beautiful gauges
-    let usage_chunks = Layout::default()
+    let gauge_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(constraints)
-        .split(details_chunks[1]);
+        .constraints(gauge_constraints)
+        .split(main_chunks[1]);
 
     let mut gauge_index = 0;
 
@@ -889,7 +922,7 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
             .ratio(ratio)
             .label(label);
-        f.render_widget(gauge, usage_chunks[gauge_index]);
+        f.render_widget(gauge, gauge_chunks[gauge_index]);
         gauge_index += 1;
     }
 
@@ -929,7 +962,7 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
             .ratio(ratio)
             .label(label);
-        f.render_widget(gauge, usage_chunks[gauge_index]);
+        f.render_widget(gauge, gauge_chunks[gauge_index]);
         gauge_index += 1;
     }
 
@@ -960,8 +993,66 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
             .ratio(ratio)
             .label(label);
-        f.render_widget(gauge, usage_chunks[gauge_index]);
+        f.render_widget(gauge, gauge_chunks[gauge_index]);
     }
+
+    // History section (third chunk) - aligned to top under gauges
+    let mut history_lines: Vec<Line> = Vec::new();
+
+    if history.is_empty() {
+        history_lines.push(Line::from(vec![Span::styled(
+            "No quota history yet. History will be recorded when quotas change.",
+            Style::default().fg(Color::Gray),
+        )]));
+    } else {
+        // Show history entries (most recent first, limited to what fits)
+        for snapshot in history.iter().rev().take(30) {
+            let datetime = snapshot.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+            let mut changes = Vec::new();
+            if let Some(tokens) = snapshot.tokens_used {
+                changes.push(format!("{} tokens", format_number(tokens)));
+            }
+            if let Some(requests) = snapshot.requests_made {
+                changes.push(format!("{} requests", format_number(requests)));
+            }
+            if let Some(cost) = snapshot.cost {
+                changes.push(format!("${:.2} cost", cost));
+            }
+
+            let change_text = if changes.is_empty() {
+                "Quota checked (no data)".to_string()
+            } else {
+                changes.join(", ")
+            };
+
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("[{}] ", datetime),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::raw(change_text),
+            ]);
+            history_lines.push(line);
+        }
+
+        if history.len() > 30 {
+            history_lines.push(Line::from(Span::styled(
+                format!("... and {} more entries", history.len() - 30),
+                Style::default().fg(Color::Gray),
+            )));
+        }
+    }
+
+    let history_widget = Paragraph::new(history_lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!("Quota History ({} entries)", history.len())),
+        )
+        .wrap(Wrap { trim: true });
+
+    f.render_widget(history_widget, main_chunks[2]);
 }
 
 fn format_number(n: u64) -> String {

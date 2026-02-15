@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2026-02-15
 
+### Added
+
+- **Quota History Tracking**
+  - Store up to 100 quota snapshots per account when values change
+  - History panel displayed directly in the dashboard under usage gauges
+  - Shows timestamp and all quota values (tokens, requests, cost) for each change
+  - History persists to `~/.config/tokstat/quota_history.json`
+  - Automatically removes history when accounts are deleted
+  - History is updated on every quota refresh when changes are detected
+
+### Changed
+
+- **Dashboard Layout Redesign**
+  - History panel now aligned to top, directly under usage gauges
+  - Dynamic layout calculation for info panel (7 lines) + gauges (3 lines each)
+  - History panel fills remaining vertical space
+  - Removed separate history toggle mode - history always visible
+
 ### Fixed
 
 - **Fixed OpenRouter cost panel alignment in dashboard**

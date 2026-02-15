@@ -14,6 +14,39 @@ pub struct Account {
     pub last_updated: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuotaSnapshot {
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub tokens_used: Option<u64>,
+    pub requests_made: Option<u64>,
+    pub cost: Option<f64>,
+}
+
+impl QuotaSnapshot {
+    pub fn from_quota_info(quota: &crate::providers::QuotaInfo) -> Self {
+        Self {
+            timestamp: quota.last_updated,
+            tokens_used: quota.usage.tokens_used,
+            requests_made: quota.usage.requests_made,
+            cost: quota.usage.cost,
+        }
+    }
+
+    pub fn has_changed_from(&self, other: &Self) -> bool {
+        self.tokens_used != other.tokens_used
+            || self.requests_made != other.requests_made
+            || self.cost != other.cost
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuotaHistory {
+    pub account_name: String,
+    pub snapshots: Vec<QuotaSnapshot>,
+}
+
+const MAX_HISTORY_SIZE: usize = 100;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct AccountsIndex {
     accounts: Vec<Account>,
@@ -36,6 +69,10 @@ impl SecureStorage {
 
     fn index_path(&self) -> PathBuf {
         self.config_dir.join("accounts.json")
+    }
+
+    fn history_path(&self) -> PathBuf {
+        self.config_dir.join("quota_history.json")
     }
 
     fn load_index(&self) -> Result<AccountsIndex> {
@@ -62,6 +99,84 @@ impl SecureStorage {
         fs::write(self.index_path(), content).context("Failed to write accounts index")?;
 
         Ok(())
+    }
+
+    fn load_history(&self) -> Result<Vec<QuotaHistory>> {
+        let path = self.history_path();
+
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+
+        let content = fs::read_to_string(&path).context("Failed to read quota history")?;
+
+        let history: Vec<QuotaHistory> =
+            serde_json::from_str(&content).context("Failed to parse quota history")?;
+
+        Ok(history)
+    }
+
+    fn save_history(&self, history: &[QuotaHistory]) -> Result<()> {
+        let content =
+            serde_json::to_string_pretty(history).context("Failed to serialize quota history")?;
+
+        fs::write(self.history_path(), content).context("Failed to write quota history")?;
+
+        Ok(())
+    }
+
+    pub fn add_quota_snapshot(
+        &self,
+        account_name: &str,
+        quota: &crate::providers::QuotaInfo,
+    ) -> Result<bool> {
+        let mut history = self.load_history()?;
+        let new_snapshot = QuotaSnapshot::from_quota_info(quota);
+
+        let account_history = history.iter_mut().find(|h| h.account_name == account_name);
+
+        let changed = match account_history {
+            Some(h) => {
+                let changed = h
+                    .snapshots
+                    .last()
+                    .map(|last| new_snapshot.has_changed_from(last))
+                    .unwrap_or(true);
+
+                if changed {
+                    h.snapshots.push(new_snapshot);
+                    // Keep only the last MAX_HISTORY_SIZE snapshots
+                    if h.snapshots.len() > MAX_HISTORY_SIZE {
+                        h.snapshots.remove(0);
+                    }
+                }
+                changed
+            }
+            None => {
+                // No history for this account yet, create new
+                history.push(QuotaHistory {
+                    account_name: account_name.to_string(),
+                    snapshots: vec![new_snapshot],
+                });
+                true
+            }
+        };
+
+        if changed {
+            self.save_history(&history)?;
+        }
+
+        Ok(changed)
+    }
+
+    pub fn get_quota_history(&self, account_name: &str) -> Result<Vec<QuotaSnapshot>> {
+        let history = self.load_history()?;
+
+        Ok(history
+            .into_iter()
+            .find(|h| h.account_name == account_name)
+            .map(|h| h.snapshots)
+            .unwrap_or_default())
     }
 
     pub fn list_accounts(&self) -> Result<Vec<Account>> {
@@ -103,6 +218,11 @@ impl SecureStorage {
 
         // Also remove credentials from keyring
         self.delete_credentials(name)?;
+
+        // Remove quota history for this account
+        let mut history = self.load_history()?;
+        history.retain(|h| h.account_name != name);
+        let _ = self.save_history(&history);
 
         self.save_index(&index)
     }
@@ -161,6 +281,13 @@ impl SecureStorage {
         let credentials = self.get_credentials(old_name)?;
         self.store_credentials(new_name, &credentials)?;
         self.delete_credentials(old_name)?;
+
+        // Rename quota history
+        let mut history = self.load_history()?;
+        if let Some(h) = history.iter_mut().find(|h| h.account_name == old_name) {
+            h.account_name = new_name.to_string();
+            self.save_history(&history)?;
+        }
 
         target.name = new_name.to_string();
         target.last_updated = chrono::Utc::now();
