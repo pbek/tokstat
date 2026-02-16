@@ -173,9 +173,11 @@ async fn show_token_status(storage: &storage::SecureStorage, json_output: bool) 
             println!("[]");
         } else {
             println!(
-                "{} No providers configured. Run {} to add an account.",
+                "{} No providers configured. Run {} to add an account, or run {} and press {}.",
                 "⚠️".red(),
-                "'tokstat login'".cyan().bold()
+                "'tokstat login'".cyan().bold(),
+                "'tokstat dashboard'".cyan().bold(),
+                "'a'".cyan().bold()
             );
         }
         return Ok(());
