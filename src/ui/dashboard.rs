@@ -318,6 +318,8 @@ async fn run_app(
                                 EnterAlternateScreen,
                                 EnableMouseCapture
                             )?;
+                            terminal.clear()?;
+                            terminal.draw(|f| ui(f, &app))?;
 
                             match result {
                                 Ok(()) => {

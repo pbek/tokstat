@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved key shortcut labels with green (Enter) and red (Esc) colors
   - Consistent visual style across both rename and create dialogs
 
+### Fixed
+
+- **Fixed dashboard not fully redrawing after account creation**
+  - Terminal screen is now properly cleared and redrawn after returning from external login flow
+  - No longer requires window resize to refresh the UI
+
 ## [0.4.0] - 2026-02-15
 
 ### Added
