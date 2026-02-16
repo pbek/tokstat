@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - 2026-02-16
 
+### Added
+
+- **Copy confirmation code during Copilot login**
+  - Press `'c'` during GitHub Copilot OAuth device flow to copy the user code to clipboard
+  - Shows clear prompt with options: press `'c'` to copy or Enter to continue
+  - Works cross-platform (Linux X11/Wayland, macOS, Windows)
+  - Displays confirmation message when code is successfully copied
+
 ### Changed
 
 - **Improved "No providers configured" message**

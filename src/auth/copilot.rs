@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
+use colored::Colorize;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use serde::{Deserialize, Serialize};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
+use std::process::Command;
 use tokio::time::{sleep, Duration};
 
 const GITHUB_CLIENT_ID: &str = "Iv1.b507a08c87ecfe98"; // GitHub CLI client ID
@@ -40,6 +43,64 @@ struct AccessTokenResponse {
     error_description: Option<String>,
 }
 
+/// Copy text to clipboard using platform-specific commands
+fn copy_to_clipboard(text: &str) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut cmd = Command::new("pbcopy");
+        cmd.stdin(std::process::Stdio::piped());
+        let mut child = cmd.spawn().context("Failed to spawn pbcopy")?;
+        if let Some(stdin) = child.stdin.take() {
+            use std::io::Write;
+            let mut stdin = stdin;
+            stdin.write_all(text.as_bytes())?;
+        }
+        child.wait().context("Failed to copy to clipboard")?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = Command::new("powershell");
+        cmd.arg("-command")
+            .arg("Set-Clipboard")
+            .arg("-Value")
+            .arg(text);
+        cmd.status().context("Failed to copy to clipboard")?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Try wl-copy first (Wayland), then xclip (X11)
+        let result = Command::new("wl-copy").arg(text).status();
+
+        if result.is_ok() && result.unwrap().success() {
+            return Ok(());
+        }
+
+        // Fall back to xclip
+        let mut cmd = Command::new("xclip");
+        cmd.arg("-selection").arg("clipboard").arg("-in");
+        cmd.stdin(std::process::Stdio::piped());
+        let mut child = cmd
+            .spawn()
+            .context("Failed to spawn xclip. Please install wl-copy (wayland) or xclip (X11).")?;
+        if let Some(stdin) = child.stdin.take() {
+            use std::io::Write;
+            let mut stdin = stdin;
+            stdin.write_all(text.as_bytes())?;
+        }
+        child.wait().context("Failed to copy to clipboard")?;
+        Ok(())
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        anyhow::bail!("Clipboard not supported on this platform")
+    }
+}
+
 pub async fn login(storage: &crate::storage::SecureStorage, account_name: &str) -> Result<()> {
     println!("\n🔐 GitHub Copilot Login Flow\n");
 
@@ -66,8 +127,47 @@ pub async fn login(storage: &crate::storage::SecureStorage, account_name: &str) 
     // Step 2: Display code to user
     println!("\n{}", "━".repeat(60));
     println!("Please visit: {}", device_code_data.verification_uri);
-    println!("And enter code: {}", device_code_data.user_code);
+    println!(
+        "And enter code: {}",
+        device_code_data.user_code.yellow().bold()
+    );
     println!("{}", "━".repeat(60));
+    println!(
+        "\nPress {} to copy the code, or {} to continue...",
+        "'c'".cyan().bold(),
+        "Enter".cyan().bold()
+    );
+
+    // Wait for user input - either copy code with 'c' or continue
+    // Enable raw mode to capture single keypresses without echoing
+    let mut copied = false;
+    if enable_raw_mode().is_ok() {
+        let mut buf = [0u8; 1];
+        let stdin = io::stdin();
+        let mut handle = stdin.lock();
+
+        // Read a single byte
+        if handle.read_exact(&mut buf).is_ok() {
+            let key = buf[0] as char;
+            if key.eq_ignore_ascii_case(&'c') {
+                copied = true;
+            }
+        }
+        let _ = disable_raw_mode();
+    }
+
+    // Perform clipboard operation outside of raw mode
+    if copied {
+        match copy_to_clipboard(&device_code_data.user_code) {
+            Ok(()) => {
+                println!("\n{} Code copied to clipboard!", "✓".green());
+            }
+            Err(e) => {
+                println!("\n{} Failed to copy to clipboard: {}", "⚠️".yellow(), e);
+            }
+        }
+    }
+
     println!("\nWaiting for authorization...");
 
     // Step 3: Poll for access token
