@@ -40,17 +40,10 @@
               installShellFiles
             ];
 
-            buildInputs =
-              with pkgs;
-              [
-                openssl
-                dbus
-              ]
-              ++ lib.optionals stdenv.isDarwin [
-                darwin.apple_sdk.frameworks.Security
-                darwin.apple_sdk.frameworks.CoreFoundation
-                darwin.apple_sdk.frameworks.SystemConfiguration
-              ];
+            buildInputs = with pkgs; [
+              openssl
+              dbus
+            ];
 
             # For keyring support
             PKG_CONFIG_PATH = "${pkgs.dbus.dev}/lib/pkgconfig";
