@@ -18,7 +18,13 @@ A beautiful CLI application to monitor token quotas across multiple AI providers
 - **Pluggable Architecture**: Easily add new AI providers
 - **Secure Credential Storage**: Uses system keyring for secure credential storage
 - **Beautiful TUI Dashboard**: Real-time quota monitoring with a gorgeous terminal UI
-- **OAuth Flow**: Seamless GitHub OAuth device flow for Copilot login
+  - Visual gauges with color-coded progress bars (Green <50%, Yellow 50-80%, Red >80%)
+  - Quota history tracking with timestamps
+  - Interactive account management (add, rename, delete)
+  - Works even without any accounts configured
+- **OAuth Flow**: Seamless GitHub OAuth device flow for Copilot login with clipboard support
+- **Smart CLI Output**: Beautiful colored output with automatic fallback for piping
+- **JSON Export**: Export quota data as JSON with `--json` flag
 - **Shell Completions**: Built-in completions for Bash, Zsh, Fish, PowerShell, and Elvish
 - **NixOS Support**: Complete Nix flake for easy installation and development
 
@@ -103,8 +109,19 @@ The dashboard provides:
 **Keyboard Controls:**
 
 - `↑`/`↓` or `j`/`k`: Navigate between accounts
-- `r`: Refresh quota data
+- `R`: Refresh quota data for all accounts
+- `r`: Rename the selected account
+- `n`: Add a new account
+- `d`: Delete the selected account (with confirmation)
 - `q` or `Esc`: Quit
+
+**Interactive Features:**
+
+- **Visual Gauges**: Color-coded progress bars for Requests, Tokens, and Cost (Green <50%, Yellow 50-80%, Red >80%)
+- **Quota History**: View historical quota changes directly in the dashboard
+- **Account Management**: Add, rename, and delete accounts without leaving the dashboard
+- **Copilot Integration**: Press `c` during OAuth flow to copy the verification code to clipboard
+- **Quota Reset Info**: View when your quota limits will reset
 
 ### Refresh Quota Data
 
@@ -114,6 +131,16 @@ tokstat refresh
 
 # Refresh specific account
 tokstat refresh my-copilot
+```
+
+### JSON Output
+
+```bash
+# Export all account data as JSON
+tokstat --json
+
+# Perfect for scripting and automation
+# Pipe to jq, save to file, or process programmatically
 ```
 
 ### Remove an Account
