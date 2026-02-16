@@ -27,6 +27,7 @@ pub async fn run(storage: SecureStorage, accounts: Vec<Account>) -> Result<()> {
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    terminal.hide_cursor()?;
 
     let mut app = App::new(storage, accounts).await?;
     let res = run_app(&mut terminal, &mut app).await;
@@ -527,24 +528,83 @@ fn ui(f: &mut Frame, app: &App) {
     f.render_widget(footer, chunks[2]);
 
     if let Mode::Renaming { buffer } = &app.mode {
-        let area = centered_rect(40, 20, f.size());
+        let area = centered_rect(50, 25, f.size());
         f.render_widget(Clear, area);
-        let prompt = Paragraph::new(vec![
+
+        // Create a clear visual distinction between the title/instructions and the input field
+        let content = vec![
             Line::from(Span::styled(
-                "Rename Account",
-                Style::default().add_modifier(Modifier::BOLD),
+                "✏️  Enter New Account Name",
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::LightCyan),
             )),
-            Line::from("Press Enter to confirm, Esc to cancel"),
             Line::from(""),
-            Line::from(buffer.as_str()),
-        ])
-        .alignment(Alignment::Left)
-        .block(
+            Line::from(vec![
+                Span::styled("Current: ", Style::default().fg(Color::Gray)),
+                Span::raw(
+                    app.accounts
+                        .get(app.selected_index)
+                        .map(|a| a.name.as_str())
+                        .unwrap_or(""),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("New name: ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    if buffer.is_empty() {
+                        "(type a name...)"
+                    } else {
+                        buffer
+                    },
+                    if buffer.is_empty() {
+                        Style::default().fg(Color::Gray)
+                    } else {
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
+                    },
+                ),
+                // Add a blinking cursor indicator
+                Span::styled(
+                    "▌",
+                    Style::default()
+                        .fg(Color::LightCyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Enter",
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" to save  •  "),
+                Span::styled(
+                    "Esc",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" to cancel"),
+            ]),
+        ];
+
+        let prompt = Paragraph::new(content).alignment(Alignment::Left).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Rename Account"),
+                .border_style(Style::default().fg(Color::LightCyan))
+                .title(Span::styled(
+                    " Rename Account ",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ))
+                .title_alignment(Alignment::Center),
         );
         f.render_widget(prompt, area);
+
+        // Hide terminal cursor - only show our custom cursor indicator
+        // The custom cursor (▌) is already rendered in the text above
     }
 
     if let Mode::CreatingAccount { selected_provider } = &app.mode {
@@ -584,12 +644,12 @@ fn ui(f: &mut Frame, app: &App) {
         ..
     } = &app.mode
     {
-        let area = centered_rect(50, 25, f.size());
+        let area = centered_rect(60, 30, f.size());
         f.render_widget(Clear, area);
 
-        let prompt = Paragraph::new(vec![
+        let content = vec![
             Line::from(vec![
-                Span::styled("Create ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled("📝 Create ", Style::default().add_modifier(Modifier::BOLD)),
                 Span::styled(
                     provider_name,
                     Style::default()
@@ -599,24 +659,76 @@ fn ui(f: &mut Frame, app: &App) {
                 Span::styled(" Account", Style::default().add_modifier(Modifier::BOLD)),
             ]),
             Line::from(""),
-            Line::from("Enter an optional name (or press Enter for default):"),
-            Line::from(buffer.as_str()),
+            Line::from(Span::styled(
+                "Enter a custom name for this account (optional):",
+                Style::default().fg(Color::Gray),
+            )),
             Line::from(""),
             Line::from(vec![
-                Span::styled("Enter", Style::default().fg(Color::Yellow)),
-                Span::raw(" to confirm, "),
-                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::styled("Name: ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    if buffer.is_empty() {
+                        "(optional - press Enter to use default)"
+                    } else {
+                        buffer
+                    },
+                    if buffer.is_empty() {
+                        Style::default()
+                            .fg(Color::DarkGray)
+                            .add_modifier(Modifier::ITALIC)
+                    } else {
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
+                    },
+                ),
+                // Add a blinking cursor indicator
+                Span::styled(
+                    "▌",
+                    Style::default()
+                        .fg(Color::LightMagenta)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("💡 Tip: ", Style::default().fg(Color::LightCyan)),
+                Span::styled(
+                    "Use a descriptive name like 'work' or 'personal'",
+                    Style::default().fg(Color::Gray),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Enter",
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" to continue  •  "),
+                Span::styled(
+                    "Esc",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" to cancel"),
             ]),
-        ])
-        .alignment(Alignment::Left)
-        .block(
+        ];
+
+        let prompt = Paragraph::new(content).alignment(Alignment::Left).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Account Name")
+                .border_style(Style::default().fg(Color::LightMagenta))
+                .title(Span::styled(
+                    " Account Name ",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ))
                 .title_alignment(Alignment::Center),
         );
         f.render_widget(prompt, area);
+
+        // Hide terminal cursor - only show our custom cursor indicator
+        // The custom cursor (▌) is already rendered in the text above
     }
 
     if let Mode::Deleting = &app.mode {

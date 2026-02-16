@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Now mentions both CLI (`tokstat login`) and dashboard (`a` key) options for adding accounts
   - Provides clearer guidance for new users on how to get started
 
+- **Improved text input dialogs in dashboard**
+  - Better visual design with colored borders and styled titles (cyan for rename, magenta for create)
+  - Added emoji icons (✏️ for rename, 📝 for create) for quick visual recognition
+  - Clear input field labels ("New name:", "Name:") with bold styling
+  - Helpful placeholder text when input is empty
+  - Single custom cursor indicator (▌) instead of dual cursors
+  - Shows current account name when renaming
+  - Added helpful tips in account creation dialog
+  - Improved key shortcut labels with green (Enter) and red (Esc) colors
+  - Consistent visual style across both rename and create dialogs
+
 ## [0.4.0] - 2026-02-15
 
 ### Added
