@@ -934,15 +934,19 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
         .filter(|&&x| x)
         .count();
 
-    // Calculate total height needed for info (7) + gauges (3 each)
+    // Calculate total height needed for info (7) + gauges (3 each) + model panel (dynamic)
     let info_height = 7u16;
     let gauges_height = (gauge_count as u16) * 3u16;
 
-    // Build constraints: info panel + gauges (fixed height) + history (fills remaining)
+    let model_panel_lines = build_model_multipliers_lines(account);
+    let model_panel_height = (model_panel_lines.len() as u16).saturating_add(2).max(4);
+
+    // Build constraints: info panel + gauges (fixed height) + history (fills remaining) + model panel (bottom)
     let constraints: Vec<Constraint> = vec![
         Constraint::Length(info_height),
         Constraint::Length(gauges_height),
         Constraint::Min(0),
+        Constraint::Length(model_panel_height),
     ];
 
     // Split the area
@@ -1167,6 +1171,43 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
         .wrap(Wrap { trim: true });
 
     f.render_widget(history_widget, main_chunks[2]);
+
+    // Model multipliers panel (bottom chunk)
+    let multipliers = Paragraph::new(model_panel_lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Model Multipliers"),
+        )
+        .wrap(Wrap { trim: true });
+
+    f.render_widget(multipliers, main_chunks[3]);
+}
+
+fn build_model_multipliers_lines(account: &Account) -> Vec<Line<'static>> {
+    if account.provider != "copilot" {
+        return vec![
+            Line::from(Span::styled(
+                "Model multipliers are Copilot-specific.",
+                Style::default().fg(Color::Gray),
+            )),
+            Line::from(Span::styled(
+                "See https://docs.github.com/en/copilot/concepts/billing/copilot-requests#model-multipliers",
+                Style::default().fg(Color::Gray),
+            )),
+        ];
+    }
+
+    vec![
+        Line::from(Span::styled(
+            "GitHub Copilot model multipliers determine how many premium requests a model consumes.",
+            Style::default().fg(Color::Gray),
+        )),
+        Line::from(Span::styled(
+            "See https://docs.github.com/en/copilot/concepts/billing/copilot-requests#model-multipliers",
+            Style::default().fg(Color::Gray),
+        )),
+    ]
 }
 
 fn format_number(n: u64) -> String {
