@@ -1,6 +1,6 @@
 [package]
 name = "tokstat"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 authors = ["pbek"]
 description = "A beautiful CLI application to monitor token quotas across multiple AI providers"
