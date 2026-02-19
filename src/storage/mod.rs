@@ -294,6 +294,13 @@ impl SecureStorage {
 
         self.save_index(&index)
     }
+
+    pub fn save_accounts_order(&self, accounts: &[Account]) -> Result<()> {
+        let index = AccountsIndex {
+            accounts: accounts.to_vec(),
+        };
+        self.save_index(&index)
+    }
 }
 
 // Add missing dirs dependency
