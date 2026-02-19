@@ -148,6 +148,38 @@ impl App {
             };
         }
     }
+
+    fn move_account_up(&mut self) {
+        if self.selected_index == 0 || self.accounts.len() < 2 {
+            return;
+        }
+        self.accounts
+            .swap(self.selected_index, self.selected_index - 1);
+        self.selected_index -= 1;
+        // Also swap quotas and histories to keep them in sync
+        self.quotas
+            .swap(self.selected_index, self.selected_index + 1);
+        self.quota_histories
+            .swap(self.selected_index, self.selected_index + 1);
+        // Save the new order
+        let _ = self.storage.save_accounts_order(&self.accounts);
+    }
+
+    fn move_account_down(&mut self) {
+        if self.selected_index >= self.accounts.len() - 1 || self.accounts.len() < 2 {
+            return;
+        }
+        self.accounts
+            .swap(self.selected_index, self.selected_index + 1);
+        self.selected_index += 1;
+        // Also swap quotas and histories to keep them in sync
+        self.quotas
+            .swap(self.selected_index, self.selected_index - 1);
+        self.quota_histories
+            .swap(self.selected_index, self.selected_index - 1);
+        // Save the new order
+        let _ = self.storage.save_accounts_order(&self.accounts);
+    }
 }
 
 async fn run_app(
@@ -203,6 +235,12 @@ async fn run_app(
                             }
                             KeyCode::Up | KeyCode::Char('k') => {
                                 app.previous();
+                            }
+                            KeyCode::Char('J') => {
+                                app.move_account_down();
+                            }
+                            KeyCode::Char('K') => {
+                                app.move_account_up();
                             }
                             _ => {}
                         }
@@ -519,7 +557,14 @@ fn ui(f: &mut Frame, app: &App) {
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw(" to navigate"),
+            Span::raw(" to navigate, "),
+            Span::styled(
+                "J/K",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" to reorder"),
         ]),
         Line::from(app.status_message.as_str()),
     ];
