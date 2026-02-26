@@ -50,8 +50,8 @@ impl Provider for AzureProvider {
             .await
             .context("Failed to parse Azure OpenAI models response")?;
 
-        // Count available models as a basic health indicator
-        let model_count = models.data.len() as u64;
+        // model_count is intentionally not used for quota display
+        let _ = models.data.len();
 
         // Try to get token usage from the usage endpoint (may not be available)
         let usage_url = format!(
@@ -124,7 +124,7 @@ impl Provider for AzureProvider {
             account_name: "".to_string(), // Will be filled by caller
             usage: TokenUsage {
                 tokens_used,
-                requests_made: requests_made.or(Some(model_count)),
+                requests_made,
                 cost: None,
             },
             limits: Some(TokenLimits {
