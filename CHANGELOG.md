@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-02-26
+
+### Added
+
+- **Azure OpenAI provider support**
+  - New provider for monitoring Azure-hosted OpenAI deployments
+  - API key authentication with resource name configuration
+  - Tracks token usage, request counts, and rate limits across deployments
+  - Supports `AZURE_RESOURCE_NAME` environment variable for resource name configuration
+  - Login via `tokstat login azure --name my-azure`
+  - Available in both CLI and TUI dashboard
+
 ## [0.6.0] - 2026-02-19
 
 ### Added

@@ -31,8 +31,8 @@ struct Cli {
 enum Commands {
     /// Add and login to a new provider account
     Login {
-        /// Provider name (copilot, openrouter)
-        #[arg(value_parser = ["copilot", "openrouter"])]
+        /// Provider name (azure, copilot, openrouter)
+        #[arg(value_parser = ["azure", "copilot", "openrouter"])]
         provider: String,
 
         /// Account name/alias
@@ -94,6 +94,13 @@ async fn main() -> Result<()> {
                     .unwrap_or_else(|| format!("{}_{}", provider, chrono::Utc::now().timestamp()));
 
                 match provider.as_str() {
+                    "azure" => {
+                        auth::azure::login(&storage, &account_name).await?;
+                        println!(
+                            "✓ Successfully added Azure OpenAI account '{}'",
+                            account_name
+                        );
+                    }
                     "copilot" => {
                         auth::copilot::login(&storage, &account_name).await?;
                         println!(
@@ -346,6 +353,7 @@ async fn render_status_fancy_cli(
 
     for (account, quota_result) in account_data {
         let provider_emoji = match account.provider.as_str() {
+            "azure" => "☁️",
             "copilot" => "🤖",
             "openrouter" => "🌐",
             _ => "🔌",

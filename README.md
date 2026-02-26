@@ -14,7 +14,7 @@ A beautiful CLI application to monitor token quotas across multiple AI providers
 
 ## Features
 
-- **Multi-Provider Support**: Monitor GitHub Copilot, OpenRouter, and more
+- **Multi-Provider Support**: Monitor Azure OpenAI, GitHub Copilot, OpenRouter, and more
 - **Pluggable Architecture**: Easily add new AI providers
 - **Secure Credential Storage**: Uses system keyring for secure credential storage
 - **Beautiful TUI Dashboard**: Real-time quota monitoring with a gorgeous terminal UI
@@ -30,6 +30,7 @@ A beautiful CLI application to monitor token quotas across multiple AI providers
 
 ## Supported Providers
 
+- **Azure OpenAI**: API key authentication with resource name
 - **GitHub Copilot**: OAuth device flow login
 - **OpenRouter**: API key authentication
 
@@ -70,6 +71,19 @@ cargo build --release
 ## Usage
 
 ### Add a Provider Account
+
+#### Azure OpenAI
+
+```bash
+tokstat login azure --name my-azure
+```
+
+You'll be prompted to enter your Azure resource name and API key. Alternatively, set the `AZURE_RESOURCE_NAME` environment variable to skip the resource name prompt:
+
+```bash
+export AZURE_RESOURCE_NAME=my-resource
+tokstat login azure --name my-azure
+```
 
 #### GitHub Copilot
 
@@ -191,10 +205,12 @@ The application is built with a pluggable provider architecture:
 src/
 ├── main.rs              # CLI interface and command handling
 ├── auth/                # Authentication modules
+│   ├── azure.rs         # Azure OpenAI API key + resource name
 │   ├── copilot.rs       # Copilot OAuth flow
 │   └── openrouter.rs    # OpenRouter API key
 ├── providers/           # Provider implementations
 │   ├── mod.rs           # Provider trait
+│   ├── azure.rs         # Azure OpenAI quota fetching
 │   ├── copilot.rs       # Copilot quota fetching
 │   └── openrouter.rs    # OpenRouter quota fetching
 ├── storage/             # Secure credential storage
@@ -234,6 +250,12 @@ impl Provider for AnthropicProvider {
 - Credentials are stored securely using the system keyring
 - OAuth tokens are encrypted at rest
 - No credentials are logged or exposed in the UI
+
+## Environment Variables
+
+| Variable              | Description                                                                                                                                                                             |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AZURE_RESOURCE_NAME` | Azure OpenAI resource name. When set, the Azure login flow will use this value instead of prompting. Also used as a fallback when fetching quotas if the stored resource name is empty. |
 
 ## Configuration
 

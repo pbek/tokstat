@@ -1,3 +1,4 @@
+pub mod azure;
 pub mod copilot;
 pub mod openrouter;
 
@@ -40,6 +41,7 @@ pub async fn fetch_quota(account: &crate::storage::Account) -> Result<QuotaInfo>
     let credentials = storage.get_credentials(&account.name)?;
 
     let provider: Box<dyn Provider> = match account.provider.as_str() {
+        "azure" => Box::new(azure::AzureProvider),
         "copilot" => Box::new(copilot::CopilotProvider),
         "openrouter" => Box::new(openrouter::OpenRouterProvider),
         _ => anyhow::bail!("Unknown provider: {}", account.provider),

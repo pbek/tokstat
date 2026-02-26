@@ -18,7 +18,11 @@ use tokio::time::Duration;
 use crate::providers::QuotaInfo;
 use crate::storage::{Account, QuotaSnapshot, SecureStorage};
 
-const PROVIDERS: &[(&str, &str)] = &[("copilot", "GitHub Copilot"), ("openrouter", "OpenRouter")];
+const PROVIDERS: &[(&str, &str)] = &[
+    ("azure", "Azure OpenAI"),
+    ("copilot", "GitHub Copilot"),
+    ("openrouter", "OpenRouter"),
+];
 
 pub async fn run(storage: SecureStorage, accounts: Vec<Account>) -> Result<()> {
     // Setup terminal
@@ -339,6 +343,9 @@ async fn run_app(
 
                             // Run the appropriate login flow
                             let result = match provider_id.as_str() {
+                                "azure" => {
+                                    crate::auth::azure::login(&app.storage, &account_name).await
+                                }
                                 "copilot" => {
                                     crate::auth::copilot::login(&app.storage, &account_name).await
                                 }
@@ -904,6 +911,14 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
                 "Supported providers:",
                 Style::default().add_modifier(Modifier::BOLD),
             )),
+            Line::from(vec![
+                Span::styled("  • ", Style::default().fg(Color::Magenta)),
+                Span::styled("Azure OpenAI", Style::default()),
+                Span::styled(
+                    " - Azure-hosted OpenAI models",
+                    Style::default().fg(Color::Gray),
+                ),
+            ]),
             Line::from(vec![
                 Span::styled("  • ", Style::default().fg(Color::Magenta)),
                 Span::styled("GitHub Copilot", Style::default()),
