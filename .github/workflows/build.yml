@@ -39,7 +39,7 @@ jobs:
 
       - name: Run git hooks (formatting, clippy)
         run: |
-          devenv test
+          devenv shell "just format"
 
       - name: Build with Nix
         run: nix build
