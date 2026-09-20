@@ -21,6 +21,7 @@ use crate::storage::{Account, QuotaSnapshot, SecureStorage};
 const PROVIDERS: &[(&str, &str)] = &[
     ("azure", "Azure OpenAI"),
     ("copilot", "GitHub Copilot"),
+    ("openai", "OpenAI Subscription"),
     ("openrouter", "OpenRouter"),
 ];
 
@@ -349,6 +350,9 @@ async fn run_app(
                                 "copilot" => {
                                     crate::auth::copilot::login(&app.storage, &account_name).await
                                 }
+                                "openai" => {
+                                    crate::auth::openai::login(&app.storage, &account_name).await
+                                }
                                 "openrouter" => {
                                     crate::auth::openrouter::login(&app.storage, &account_name)
                                         .await
@@ -364,7 +368,7 @@ async fn run_app(
                                 EnableMouseCapture
                             )?;
                             terminal.clear()?;
-                            terminal.draw(|f| ui(f, &app))?;
+                            terminal.draw(|f| ui(f, app))?;
 
                             match result {
                                 Ok(()) => {
@@ -926,6 +930,14 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             ]),
             Line::from(vec![
                 Span::styled("  • ", Style::default().fg(Color::Magenta)),
+                Span::styled("OpenAI Subscription", Style::default()),
+                Span::styled(
+                    " - ChatGPT/Codex 5h and weekly limits",
+                    Style::default().fg(Color::Gray),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("  • ", Style::default().fg(Color::Magenta)),
                 Span::styled("OpenRouter", Style::default()),
                 Span::styled(" - LLM API aggregator", Style::default().fg(Color::Gray)),
             ]),
@@ -992,7 +1004,8 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
     let gauge_count = [has_requests, has_tokens, has_cost]
         .iter()
         .filter(|&&x| x)
-        .count();
+        .count()
+        + quota.windows.len();
 
     // Calculate total height needed for info (7) + gauges (3 each) + model panel (dynamic)
     let info_height = 7u16;
@@ -1172,6 +1185,36 @@ fn render_quota_details(f: &mut Frame, app: &App, area: Rect) {
             .ratio(ratio)
             .label(label);
         f.render_widget(gauge, gauge_chunks[gauge_index]);
+        gauge_index += 1;
+    }
+
+    for window in &quota.windows {
+        let ratio = (window.used_percent / 100.0).clamp(0.0, 1.0);
+        let color = if ratio < 0.5 {
+            Color::Green
+        } else if ratio < 0.8 {
+            Color::Yellow
+        } else {
+            Color::Red
+        };
+        let reset = window
+            .reset_date
+            .map(|date| date.format("%Y-%m-%d %H:%M UTC").to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        let gauge = Gauge::default()
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            )
+            .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
+            .ratio(ratio)
+            .label(format!(
+                "{}: {:.1}% used, resets {}",
+                window.label, window.used_percent, reset
+            ));
+        f.render_widget(gauge, gauge_chunks[gauge_index]);
+        gauge_index += 1;
     }
 
     // History section (third chunk) - aligned to top under gauges

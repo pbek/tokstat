@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-20
+
+### Added
+
+- **OpenAI subscription provider support**
+  - ChatGPT device authorization with automatic token refresh
+  - Press `c` during device authorization to copy the one-time code to the clipboard
+  - Codex 5-hour and weekly rolling usage limits
+  - Available in the CLI and TUI dashboard
+  - Login via `tokstat login openai --name my-openai`
+
+### Changed
+
+- Added generic quota-window output to text, JSON, and dashboard views
+
 ## [0.7.0] - 2026-02-26
 
 ### Added

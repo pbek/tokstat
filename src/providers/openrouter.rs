@@ -48,6 +48,7 @@ impl Provider for OpenRouterProvider {
                 max_cost: key_data.data.limit,
             }),
             reset_date: None,
+            windows: Vec::new(),
             last_updated: chrono::Utc::now(),
         })
     }

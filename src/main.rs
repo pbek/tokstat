@@ -31,8 +31,8 @@ struct Cli {
 enum Commands {
     /// Add and login to a new provider account
     Login {
-        /// Provider name (azure, copilot, openrouter)
-        #[arg(value_parser = ["azure", "copilot", "openrouter"])]
+        /// Provider name (azure, copilot, openai, openrouter)
+        #[arg(value_parser = ["azure", "copilot", "openai", "openrouter"])]
         provider: String,
 
         /// Account name/alias
@@ -105,6 +105,13 @@ async fn main() -> Result<()> {
                         auth::copilot::login(&storage, &account_name).await?;
                         println!(
                             "✓ Successfully logged into GitHub Copilot as '{}'",
+                            account_name
+                        );
+                    }
+                    "openai" => {
+                        auth::openai::login(&storage, &account_name).await?;
+                        println!(
+                            "✓ Successfully added OpenAI subscription account '{}'",
                             account_name
                         );
                     }
@@ -212,6 +219,14 @@ async fn show_token_status(storage: &storage::SecureStorage, json_output: bool) 
                                 "max_cost": l.max_cost
                             })
                         }),
+                        "windows": quota.windows.iter().map(|window| {
+                            serde_json::json!({
+                                "label": window.label,
+                                "used_percent": window.used_percent,
+                                "window_minutes": window.window_minutes,
+                                "reset_date": window.reset_date.map(|dt| dt.to_rfc3339())
+                            })
+                        }).collect::<Vec<_>>(),
                         "reset_date": quota.reset_date.map(|dt| dt.to_rfc3339()),
                         "last_updated": quota.last_updated.to_rfc3339()
                     })
@@ -303,6 +318,15 @@ async fn render_status_text_only(
                     }
                 }
 
+                for window in &quota.windows {
+                    println!(
+                        "  {}: {:.1}% used (resets {})",
+                        window.label,
+                        window.used_percent,
+                        format_datetime(window.reset_date)
+                    );
+                }
+
                 println!("  Reset: {}", format_datetime(quota.reset_date));
                 println!("  Updated: {}", format_datetime(Some(quota.last_updated)));
             }
@@ -355,6 +379,7 @@ async fn render_status_fancy_cli(
         let provider_emoji = match account.provider.as_str() {
             "azure" => "☁️",
             "copilot" => "🤖",
+            "openai" => "🧠",
             "openrouter" => "🌐",
             _ => "🔌",
         };
@@ -423,6 +448,17 @@ async fn render_status_fancy_cli(
                         "{}{}{}",
                         "│".bright_magenta(),
                         pad_to_width(&format!("  {}", cost_info), BOX_WIDTH),
+                        "│".bright_magenta()
+                    );
+                    println!("{}", line);
+                }
+
+                for window in &quota.windows {
+                    let window_info = format_window_with_bar(window);
+                    let line = format!(
+                        "{}{}{}",
+                        "│".bright_magenta(),
+                        pad_to_width(&format!("  {}", window_info), BOX_WIDTH),
                         "│".bright_magenta()
                     );
                     println!("{}", line);
@@ -611,6 +647,30 @@ fn format_cost_with_bar(quota: &crate::providers::QuotaInfo, cost: f64) -> Strin
     } else {
         format!("{} {} ${:.2}", "💰", "Cost:".bright_white().bold(), cost)
     }
+}
+
+fn format_window_with_bar(window: &crate::providers::QuotaWindow) -> String {
+    use colored::*;
+
+    let percent_used = window.used_percent.clamp(0.0, 100.0);
+    let bar_width = 20;
+    let filled = (percent_used / 100.0 * bar_width as f64) as usize;
+    let bar = format!("{}{}", "█".repeat(filled), "░".repeat(bar_width - filled));
+    let colored_bar = if percent_used < 50.0 {
+        bar.green()
+    } else if percent_used < 80.0 {
+        bar.yellow()
+    } else {
+        bar.red()
+    };
+
+    format!(
+        "📊 {} {:.1}% {} resets {}",
+        format!("{}:", window.label).bright_white().bold(),
+        window.used_percent,
+        colored_bar,
+        format_datetime(window.reset_date)
+    )
 }
 
 fn pad_to_width(text: &str, width: usize) -> String {

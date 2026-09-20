@@ -85,6 +85,8 @@ tokstat is designed to monitor token quotas across multiple AI providers. While 
 - **Implementation complexity**: Low
 - **Priority**: HIGH
 
+OpenAI ChatGPT/Codex subscription usage is implemented separately from API-key billing.
+
 #### Anthropic Claude
 
 - **Authentication**: API key
@@ -165,7 +167,7 @@ tokstat is designed to monitor token quotas across multiple AI providers. While 
 ### Phase 1: Major LLM Providers (HIGH PRIORITY)
 
 1. ✅ OpenRouter (DONE)
-2. OpenAI - Most widely used
+2. ✅ OpenAI subscriptions - ChatGPT/Codex rolling limits
 3. Anthropic Claude - Growing adoption
 4. Cohere - Enterprise focus
 
@@ -375,7 +377,7 @@ Include in your PR:
 
 Vote for providers you want supported:
 
-- [ ] OpenAI
+- [x] OpenAI subscriptions
 - [ ] Anthropic Claude
 - [ ] Cursor
 - [ ] LangChain/LangSmith

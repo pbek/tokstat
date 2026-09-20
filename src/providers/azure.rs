@@ -133,6 +133,7 @@ impl Provider for AzureProvider {
                 max_cost: None,
             }),
             reset_date: None,
+            windows: Vec::new(),
             last_updated: chrono::Utc::now(),
         })
     }

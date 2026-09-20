@@ -14,7 +14,7 @@ A beautiful CLI application to monitor token quotas across multiple AI providers
 
 ## Features
 
-- **Multi-Provider Support**: Monitor Azure OpenAI, GitHub Copilot, OpenRouter, and more
+- **Multi-Provider Support**: Monitor OpenAI subscriptions, Azure OpenAI, GitHub Copilot, OpenRouter, and more
 - **Pluggable Architecture**: Easily add new AI providers
 - **Secure Credential Storage**: Uses system keyring for secure credential storage
 - **Beautiful TUI Dashboard**: Real-time quota monitoring with a gorgeous terminal UI
@@ -22,7 +22,7 @@ A beautiful CLI application to monitor token quotas across multiple AI providers
   - Quota history tracking with timestamps
   - Interactive account management (add, rename, delete)
   - Works even without any accounts configured
-- **OAuth Flow**: Seamless GitHub OAuth device flow for Copilot login with clipboard support
+- **OAuth Flow**: Device authorization for OpenAI subscriptions and GitHub Copilot
 - **Smart CLI Output**: Beautiful colored output with automatic fallback for piping
 - **JSON Export**: Export quota data as JSON with `--json` flag
 - **Shell Completions**: Built-in completions for Bash, Zsh, Fish, PowerShell, and Elvish
@@ -32,6 +32,7 @@ A beautiful CLI application to monitor token quotas across multiple AI providers
 
 - **Azure OpenAI**: API key authentication with resource name
 - **GitHub Copilot**: OAuth device flow login
+- **OpenAI Subscription**: ChatGPT device login with Codex 5-hour and weekly usage limits
 - **OpenRouter**: API key authentication
 
 More providers coming soon! See [AGENTS.md](AGENTS.md) for the roadmap of AI agent platforms and providers we plan to support.
@@ -92,6 +93,14 @@ tokstat login copilot --name my-copilot
 ```
 
 This will start the OAuth device flow. Follow the instructions to authorize the app.
+
+#### OpenAI Subscription
+
+```bash
+tokstat login openai --name my-openai
+```
+
+Follow the device-login instructions to authenticate with your ChatGPT account. Press `c` to copy the one-time code to the clipboard, or press Enter to continue. tokstat displays the Codex 5-hour and weekly rolling usage limits and refreshes the OAuth login automatically. This monitors subscription usage, not OpenAI API-key billing.
 
 #### OpenRouter
 
@@ -207,11 +216,13 @@ src/
 ├── auth/                # Authentication modules
 │   ├── azure.rs         # Azure OpenAI API key + resource name
 │   ├── copilot.rs       # Copilot OAuth flow
+│   ├── openai.rs        # OpenAI subscription device login
 │   └── openrouter.rs    # OpenRouter API key
 ├── providers/           # Provider implementations
 │   ├── mod.rs           # Provider trait
 │   ├── azure.rs         # Azure OpenAI quota fetching
 │   ├── copilot.rs       # Copilot quota fetching
+│   ├── openai.rs        # OpenAI subscription quota fetching
 │   └── openrouter.rs    # OpenRouter quota fetching
 ├── storage/             # Secure credential storage
 │   └── mod.rs           # Keyring integration

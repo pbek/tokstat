@@ -126,6 +126,7 @@ impl Provider for CopilotProvider {
                 max_cost: None,
             }),
             reset_date,
+            windows: Vec::new(),
             last_updated: chrono::Utc::now(),
         })
     }
